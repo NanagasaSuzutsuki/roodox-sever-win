@@ -1,0 +1,655 @@
+syntax = "proto3";
+
+package roodox.core.v1;
+
+option go_package = "roodox_server/proto;proto";
+
+// Core file operations.
+service CoreService {
+  rpc ListDir(ListDirRequest) returns (ListDirResponse);
+  rpc Stat(StatRequest) returns (StatResponse);
+  rpc ReadFile(ReadFileRequest) returns (ReadFileResponse);
+  rpc ReadFileRange(ReadFileRangeRequest) returns (ReadFileRangeResponse);
+  rpc WriteFileRange(WriteFileRangeRequest) returns (WriteFileRangeResponse);
+  rpc SetFileSize(SetFileSizeRequest) returns (SetFileSizeResponse);
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+  rpc Rename(RenameRequest) returns (RenameResponse);
+  rpc Mkdir(MkdirRequest) returns (MkdirResponse);
+}
+
+message FileInfo {
+  string path = 1;
+  string name = 2;
+  bool is_dir = 3;
+  int64 size = 4;
+  int64 mtime_unix = 5;
+  uint64 version = 6;
+  string hash = 7;
+}
+
+message ListDirRequest {
+  string path = 1;
+}
+
+message ListDirResponse {
+  repeated FileInfo entries = 1;
+}
+
+message StatRequest {
+  string path = 1;
+}
+
+message StatResponse {
+  FileInfo info = 1;
+}
+
+message ReadFileRequest {
+  string path = 1;
+}
+
+message ReadFileResponse {
+  bytes data = 1;
+}
+
+message ReadFileRangeRequest {
+  string path = 1;
+  int64 offset = 2;
+  int64 length = 3;
+}
+
+message ReadFileRangeResponse {
+  bytes data = 1;
+  int64 file_size = 2;
+}
+
+message WriteFileRangeRequest {
+  string path = 1;
+  int64 offset = 2;
+  bytes data = 3;
+  uint64 base_version = 4;
+}
+
+message WriteFileRangeResponse {
+  int64 bytes_written = 1;
+  int64 file_size = 2;
+  uint64 new_version = 3;
+  bool conflicted = 4;
+  string conflict_path = 5;
+}
+
+message SetFileSizeRequest {
+  string path = 1;
+  int64 size = 2;
+  uint64 base_version = 3;
+}
+
+message SetFileSizeResponse {
+  int64 file_size = 1;
+  uint64 new_version = 2;
+  bool conflicted = 3;
+  string conflict_path = 4;
+}
+
+message DeleteRequest {
+  string path = 1;
+}
+
+message DeleteResponse {}
+
+message RenameRequest {
+  string old_path = 1;
+  string new_path = 2;
+}
+
+message RenameResponse {}
+
+message MkdirRequest {
+  string path = 1;
+}
+
+message MkdirResponse {}
+
+// Sync operations.
+service SyncService {
+  rpc GetFileMeta(GetFileMetaRequest) returns (GetFileMetaResponse);
+  rpc WriteFile(WriteFileRequest) returns (WriteFileResponse);
+  rpc WriteFileStream(stream WriteFileChunk) returns (WriteFileResponse);
+  rpc ListChangedFiles(ListChangedFilesRequest) returns (ListChangedFilesResponse);
+}
+
+message FileMeta {
+  string path = 1;
+  uint64 version = 2;
+  int64 mtime_unix = 3;
+  string hash = 4;
+  int64 size = 5;
+}
+
+message GetFileMetaRequest {
+  string path = 1;
+}
+
+message GetFileMetaResponse {
+  FileMeta meta = 1;
+}
+
+message WriteFileRequest {
+  string path = 1;
+  bytes data = 2;
+  uint64 base_version = 3;
+}
+
+message WriteFileResponse {
+  bool conflicted = 1;
+  string conflict_path = 2;
+  uint64 new_version = 3;
+}
+
+message ListChangedFilesRequest {
+  int64 since_mtime_unix = 1;
+  uint64 since_version = 2;
+}
+
+message ListChangedFilesResponse {
+  repeated FileMeta metas = 1;
+}
+
+message WriteFileChunk {
+  string path = 1;
+  uint64 base_version = 2;
+  bytes data = 3;
+}
+
+// Lock operations.
+service LockService {
+  rpc AcquireLock(AcquireLockRequest) returns (AcquireLockResponse);
+  rpc RenewLock(RenewLockRequest) returns (RenewLockResponse);
+  rpc ReleaseLock(ReleaseLockRequest) returns (ReleaseLockResponse);
+}
+
+message AcquireLockRequest {
+  string path = 1;
+  string client_id = 2;
+  uint32 ttl_seconds = 3;
+}
+
+message AcquireLockResponse {
+  bool ok = 1;
+  string owner = 2;
+  int64 expire_at = 3;
+}
+
+message RenewLockRequest {
+  string path = 1;
+  string client_id = 2;
+  uint32 ttl_seconds = 3;
+}
+
+message RenewLockResponse {
+  bool ok = 1;
+  int64 expire_at = 2;
+}
+
+message ReleaseLockRequest {
+  string path = 1;
+  string client_id = 2;
+}
+
+message ReleaseLockResponse {
+  bool ok = 1;
+}
+
+// Version operations.
+service VersionService {
+  rpc GetHistory(GetHistoryRequest) returns (GetHistoryResponse);
+  rpc GetVersion(GetVersionRequest) returns (GetVersionResponse);
+}
+
+message VersionRecord {
+  uint64 version = 1;
+  int64 mtime_unix = 2;
+  string hash = 3;
+  int64 size = 4;
+  string client_id = 5;
+  string change_type = 6;
+}
+
+message GetHistoryRequest {
+  string path = 1;
+}
+
+message GetHistoryResponse {
+  repeated VersionRecord records = 1;
+}
+
+message GetVersionRequest {
+  string path = 1;
+  uint64 version = 2;
+}
+
+message GetVersionResponse {
+  bytes data = 1;
+}
+
+// Build analysis.
+service AnalyzeService {
+  rpc AnalyzeBuildUnits(AnalyzeBuildUnitsRequest) returns (AnalyzeBuildUnitsResponse);
+}
+
+message BuildUnit {
+  string path = 1;
+  string type = 2;
+}
+
+message AnalyzeBuildUnitsRequest {
+  string root = 1;
+}
+
+message AnalyzeBuildUnitsResponse {
+  repeated BuildUnit units = 1;
+}
+
+// Remote build.
+service BuildService {
+  rpc StartBuild(StartBuildRequest) returns (StartBuildResponse);
+  rpc GetBuildStatus(GetBuildStatusRequest) returns (GetBuildStatusResponse);
+  rpc FetchBuildLog(FetchBuildLogRequest) returns (FetchBuildLogResponse);
+  rpc GetBuildProduct(GetBuildProductRequest) returns (GetBuildProductResponse);
+}
+
+message StartBuildRequest {
+  string unit_path = 1;
+  string target = 2;
+}
+
+message StartBuildResponse {
+  string build_id = 1;
+}
+
+message GetBuildStatusRequest {
+  string build_id = 1;
+}
+
+message GetBuildStatusResponse {
+  string status = 1;
+  string error = 2;
+  int64 started_at_unix = 3;
+  int64 finished_at_unix = 4;
+  string product_name = 5;
+}
+
+message FetchBuildLogRequest {
+  string build_id = 1;
+}
+
+message FetchBuildLogResponse {
+  string text = 1;
+}
+
+message GetBuildProductRequest {
+  string build_id = 1;
+}
+
+message GetBuildProductResponse {
+  string name = 1;
+  bytes data = 2;
+}
+
+// Client control-plane API.
+service ControlPlaneService {
+  rpc RegisterDevice(RegisterDeviceRequest) returns (RegisterDeviceResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc GetAssignedConfig(GetAssignedConfigRequest) returns (GetAssignedConfigResponse);
+  rpc ReportSyncState(ReportSyncStateRequest) returns (ReportSyncStateResponse);
+  rpc ReportMountState(ReportMountStateRequest) returns (ReportMountStateResponse);
+  rpc UploadDiagnostics(UploadDiagnosticsRequest) returns (UploadDiagnosticsResponse);
+}
+
+message RegisterDeviceRequest {
+  string device_id = 1;
+  string device_name = 2;
+  string device_role = 3;
+  string client_version = 4;
+  string platform = 5;
+  string overlay_provider = 6;
+  string overlay_address = 7;
+  repeated string capabilities = 8;
+  string server_id = 9;
+  string device_group = 10;
+}
+
+message RegisterDeviceResponse {
+  bool accepted = 1;
+  string assigned_device_label = 2;
+  uint32 heartbeat_interval_seconds = 3;
+  uint64 policy_revision = 4;
+  bool requires_policy_pull = 5;
+}
+
+message HeartbeatRequest {
+  string device_id = 1;
+  string session_id = 2;
+  int64 timestamp_unix = 3;
+  bool overlay_connected = 4;
+  bool grpc_connected = 5;
+  int64 last_sync_time_unix = 6;
+  string last_error = 7;
+  string mount_state = 8;
+  string sync_state_summary = 9;
+}
+
+message HeartbeatResponse {
+  uint32 next_heartbeat_seconds = 1;
+  uint64 policy_revision = 2;
+  repeated string pending_actions = 3;
+  repeated ClientAction pending_action_details = 4;
+}
+
+message GetAssignedConfigRequest {
+  string device_id = 1;
+}
+
+message GetAssignedConfigResponse {
+  string mount_path = 1;
+  repeated string sync_roots = 2;
+  string conflict_policy = 3;
+  bool read_only = 4;
+  bool auto_connect = 5;
+  int64 bandwidth_limit = 6;
+  string log_level = 7;
+  int64 large_file_threshold = 8;
+  uint64 policy_revision = 9;
+}
+
+message ReportSyncStateRequest {
+  string device_id = 1;
+  uint32 current_task_count = 2;
+  int64 last_success_time = 3;
+  string last_error = 4;
+  uint64 conflict_count = 5;
+  uint32 queue_depth = 6;
+  string summary = 7;
+}
+
+message ReportSyncStateResponse {}
+
+message ReportMountStateRequest {
+  string device_id = 1;
+  bool mounted = 2;
+  string mount_path = 3;
+  int64 last_mount_time = 4;
+  string last_error = 5;
+}
+
+message ReportMountStateResponse {}
+
+message UploadDiagnosticsRequest {
+  string device_id = 1;
+  string category = 2;
+  string content_type = 3;
+  string summary = 4;
+  bytes data = 5;
+}
+
+message UploadDiagnosticsResponse {
+  string diagnostics_id = 1;
+  int64 uploaded_at_unix = 2;
+  int64 size_bytes = 3;
+}
+
+// Admin console query API.
+service AdminConsoleService {
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+  rpc GetDeviceDetail(GetDeviceDetailRequest) returns (GetDeviceDetailResponse);
+  rpc IssueJoinBundle(IssueJoinBundleRequest) returns (IssueJoinBundleResponse);
+  rpc UpdateDevicePolicy(UpdateDevicePolicyRequest) returns (UpdateDevicePolicyResponse);
+  rpc RequestClientAction(RequestClientActionRequest) returns (RequestClientActionResponse);
+  rpc GetServerRuntime(GetServerRuntimeRequest) returns (GetServerRuntimeResponse);
+  rpc GetServerObservability(GetServerObservabilityRequest) returns (GetServerObservabilityResponse);
+  rpc TriggerServerBackup(TriggerServerBackupRequest) returns (TriggerServerBackupResponse);
+  rpc ShutdownServer(ShutdownServerRequest) returns (ShutdownServerResponse);
+}
+
+message ListDevicesRequest {}
+
+message DeviceSummary {
+  string device_id = 1;
+  string display_name = 2;
+  string role = 3;
+  string overlay_provider = 4;
+  string overlay_address = 5;
+  string online_state = 6;
+  int64 last_seen_at = 7;
+  string sync_state = 8;
+  string mount_state = 9;
+  string client_version = 10;
+  uint64 policy_revision = 11;
+}
+
+message ListDevicesResponse {
+  repeated DeviceSummary devices = 1;
+}
+
+message AssignedConfigPolicy {
+  string mount_path = 1;
+  repeated string sync_roots = 2;
+  string conflict_policy = 3;
+  bool read_only = 4;
+  bool auto_connect = 5;
+  int64 bandwidth_limit = 6;
+  string log_level = 7;
+  int64 large_file_threshold = 8;
+}
+
+message ClientAction {
+  string action_id = 1;
+  string action_type = 2;
+  string payload_json = 3;
+  string status = 4;
+  int64 requested_at_unix = 5;
+  int64 delivered_at_unix = 6;
+  int64 completed_at_unix = 7;
+}
+
+message DiagnosticSummary {
+  string diagnostics_id = 1;
+  string category = 2;
+  string content_type = 3;
+  string summary = 4;
+  int64 size_bytes = 5;
+  int64 uploaded_at_unix = 6;
+}
+
+message GetDeviceDetailRequest {
+  string device_id = 1;
+}
+
+message GetDeviceDetailResponse {
+  DeviceSummary summary = 1;
+  string device_name = 2;
+  string platform = 3;
+  repeated string capabilities = 4;
+  string server_id = 5;
+  string device_group = 6;
+  string session_id = 7;
+  bool overlay_connected = 8;
+  bool grpc_connected = 9;
+  string last_error = 10;
+  int64 last_sync_time_unix = 11;
+  uint32 current_task_count = 12;
+  int64 sync_last_success_time = 13;
+  string sync_last_error = 14;
+  uint64 conflict_count = 15;
+  uint32 queue_depth = 16;
+  string sync_summary = 17;
+  bool mounted = 18;
+  string mount_path = 19;
+  int64 last_mount_time_unix = 20;
+  string mount_last_error = 21;
+  AssignedConfigPolicy assigned_config = 22;
+  repeated ClientAction pending_actions = 23;
+  repeated DiagnosticSummary recent_diagnostics = 24;
+  repeated string available_actions = 25;
+  bool requires_policy_pull = 26;
+  int64 last_registered_at = 27;
+  int64 last_heartbeat_at = 28;
+  int64 last_sync_report_at = 29;
+  int64 last_mount_report_at = 30;
+}
+
+message IssueJoinBundleRequest {
+  string device_id = 1;
+  string device_name = 2;
+  string device_role = 3;
+  string device_group = 4;
+  string overlay_provider = 5;
+  string overlay_join_config_json = 6;
+}
+
+message JoinBundle {
+  uint32 version = 1;
+  string overlay_provider = 2;
+  string overlay_join_config_json = 3;
+  string service_discovery_mode = 4;
+  string service_host = 5;
+  uint32 service_port = 6;
+  bool use_tls = 7;
+  string tls_server_name = 8;
+  string server_id = 9;
+  string device_group = 10;
+  string shared_secret = 11;
+  string device_id = 12;
+  string device_name = 13;
+  string device_role = 14;
+}
+
+message IssueJoinBundleResponse {
+  string bundle_json = 1;
+  JoinBundle bundle = 2;
+}
+
+message UpdateDevicePolicyRequest {
+  string device_id = 1;
+  AssignedConfigPolicy policy = 2;
+  uint64 expected_policy_revision = 3;
+  bool reset_to_default = 4;
+}
+
+message UpdateDevicePolicyResponse {
+  uint64 policy_revision = 1;
+  bool requires_policy_pull = 2;
+  AssignedConfigPolicy effective_policy = 3;
+}
+
+message RequestClientActionRequest {
+  string device_id = 1;
+  string action_type = 2;
+  string payload_json = 3;
+  bool replace_similar_pending = 4;
+}
+
+message RequestClientActionResponse {
+  ClientAction action = 1;
+}
+
+message GetServerRuntimeRequest {}
+
+message FileStatSummary {
+  string path = 1;
+  bool exists = 2;
+  int64 size_bytes = 3;
+  int64 modified_at_unix = 4;
+}
+
+message DatabaseCheckpointStatus {
+  int64 last_checkpoint_at_unix = 1;
+  string mode = 2;
+  int64 busy_readers = 3;
+  int64 log_frames = 4;
+  int64 checkpointed_frames = 5;
+  string last_error = 6;
+}
+
+message DatabaseBackupStatus {
+  string dir = 1;
+  int64 interval_seconds = 2;
+  uint32 keep_latest = 3;
+  int64 last_backup_at_unix = 4;
+  string last_backup_path = 5;
+  string last_error = 6;
+}
+
+message GetServerRuntimeResponse {
+  string server_id = 1;
+  string listen_addr = 2;
+  string root_dir = 3;
+  string db_path = 4;
+  bool tls_enabled = 5;
+  bool auth_enabled = 6;
+  int64 started_at_unix = 7;
+  string health_state = 8;
+  string health_message = 9;
+  FileStatSummary db_file = 10;
+  FileStatSummary wal_file = 11;
+  FileStatSummary shm_file = 12;
+  DatabaseCheckpointStatus checkpoint = 13;
+  DatabaseBackupStatus backup = 14;
+}
+
+message GetServerObservabilityRequest {}
+
+message HotPathMetric {
+  string path = 1;
+  int64 count = 2;
+}
+
+message RpcLatencyMetric {
+  string method = 1;
+  int64 count = 2;
+  int64 error_count = 3;
+  int64 p50_ms = 4;
+  int64 p95_ms = 5;
+  int64 p99_ms = 6;
+}
+
+message BuildObservability {
+  int64 success_count = 1;
+  int64 failure_count = 2;
+  int64 log_bytes = 3;
+  int64 queue_wait_count = 4;
+  int64 queue_wait_p50_ms = 5;
+  int64 queue_wait_p95_ms = 6;
+  int64 queue_wait_p99_ms = 7;
+  int64 duration_count = 8;
+  int64 duration_p50_ms = 9;
+  int64 duration_p95_ms = 10;
+  int64 duration_p99_ms = 11;
+}
+
+message GetServerObservabilityResponse {
+  int64 write_file_range_calls = 1;
+  int64 write_file_range_bytes = 2;
+  int64 write_file_range_conflicts = 3;
+  int64 small_write_bursts = 4;
+  repeated HotPathMetric small_write_hot_paths = 5;
+  BuildObservability build = 6;
+  repeated RpcLatencyMetric rpc_metrics = 7;
+}
+
+message TriggerServerBackupRequest {}
+
+message TriggerServerBackupResponse {
+  int64 created_at_unix = 1;
+  string path = 2;
+}
+
+message ShutdownServerRequest {
+  string reason = 1;
+}
+
+message ShutdownServerResponse {
+  bool accepted = 1;
+  bool already_in_progress = 2;
+  int64 requested_at_unix = 3;
+  string message = 4;
+}

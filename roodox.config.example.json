@@ -1,0 +1,112 @@
+{
+  "addr": ":50051",
+  "root_dir": "share",
+  "runtime": {
+    "binary_path": "roodox_server.exe",
+    "state_dir": "runtime",
+    "pid_file": "runtime/roodox_server.pid",
+    "log_dir": "runtime/logs",
+    "stdout_log_name": "server.stdout.log",
+    "stderr_log_name": "server.stderr.log",
+    "graceful_stop_timeout_seconds": 10,
+    "windows_service": {
+      "name": "RoodoxServer",
+      "display_name": "Roodox Server",
+      "description": "Roodox gRPC server",
+      "start_type": "auto"
+    }
+  },
+  "remote_build_enabled": true,
+  "build_tool_dirs": [
+    "C:/Program Files/CMake/bin",
+    "C:/Program Files (x86)/GnuWin32/bin"
+  ],
+  "required_build_tools": [
+    "cmake",
+    "make",
+    "build-essential"
+  ],
+  "auth_enabled": true,
+  "shared_secret": "replace-with-a-long-random-secret",
+  "tls_enabled": true,
+  "tls_cert_path": "certs/roodox-server-cert.pem",
+  "tls_key_path": "certs/roodox-server-key.pem",
+  "database": {
+    "checkpoint_interval_seconds": 300,
+    "checkpoint_mode": "truncate",
+    "backup_dir": "backups",
+    "backup_interval_seconds": 86400,
+    "backup_keep_latest": 7
+  },
+  "control_plane": {
+    "server_id": "srv-main",
+    "default_device_group": "default",
+    "heartbeat_interval_seconds": 15,
+    "default_policy_revision": 1,
+    "available_actions": [
+      "reconnect_overlay",
+      "resync",
+      "remount",
+      "collect_diagnostics"
+    ],
+    "diagnostics_keep_latest": 20,
+    "assigned_config": {
+      "mount_path": "",
+      "sync_roots": [
+        "."
+      ],
+      "conflict_policy": "manual",
+      "read_only": false,
+      "auto_connect": true,
+      "bandwidth_limit": 0,
+      "log_level": "info",
+      "large_file_threshold": 67108864
+    },
+    "join_bundle": {
+      "overlay_provider": "direct",
+      "overlay_join_config_json": "{}",
+      "service_discovery": {
+        "mode": "static",
+        "host": "roodox.example.com",
+        "port": 50051,
+        "use_tls": true,
+        "tls_server_name": "roodox.example.com"
+      }
+    }
+  },
+  "cleanup": {
+    "temp_artifacts": {
+      "enabled": true,
+      "interval_seconds": 300,
+      "retention_seconds": 86400,
+      "max_bytes": 536870912,
+      "prefixes": [
+        "roodox-suite-",
+        "roodox-suite-build-",
+        "roodox-stress-"
+      ]
+    },
+    "build_workdirs": {
+      "interval_seconds": 60,
+      "retention_seconds": 1800,
+      "max_bytes": 2147483648
+    },
+    "conflict_files": {
+      "enabled": true,
+      "interval_seconds": 3600,
+      "retention_seconds": 604800,
+      "max_bytes": 268435456,
+      "max_copies_per_path": 20
+    },
+    "log_files": {
+      "enabled": true,
+      "dir": "runtime/logs",
+      "patterns": [
+        "server*.log"
+      ],
+      "interval_seconds": 900,
+      "retention_seconds": 604800,
+      "max_bytes": 268435456
+    }
+  }
+}

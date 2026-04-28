@@ -1,0 +1,28 @@
+# Runtime state, secrets, and local deployment data
+/artifacts/
+/backups/
+/runtime/
+/share/
+/certs/*.pem
+/roodox.config.json
+/roodox.db
+/roodox.db-shm
+/roodox.db-wal
+/roodox.db.lock
+
+# Local binaries and installers
+/bin/
+/*.exe
+/*.msi
+/*.zip
+/*.pdb
+
+# Workbench build outputs
+/workbench/node_modules/
+/workbench/dist/
+/workbench/src-tauri/target/
+
+# Logs and OS noise
+*.log
+.DS_Store
+Thumbs.db
