@@ -232,7 +232,7 @@ Example:
   "control_plane": {
     "join_bundle": {
       "overlay_provider": "tailscale",
-      "overlay_join_config_json": "{\"tailnet\":\"example.ts.net\",\"hostname\":\"roodox-client-01\",\"authKey\":\"tskey-auth-kxxxxx\"}",
+      "overlay_join_config_json": "{\"tailnet\":\"example.ts.net\",\"hostname\":\"roodox-client-01\",\"authKey\":\"replace-with-tailscale-auth-key\"}",
       "service_discovery": {
         "mode": "static",
         "host": "server-1.tailnet.ts.net",

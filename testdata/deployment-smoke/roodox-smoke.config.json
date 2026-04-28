@@ -19,7 +19,7 @@
   },
   "remote_build_enabled": false,
   "auth_enabled": true,
-  "shared_secret": "roodox-smoke-secret",
+  "shared_secret": "replace-with-smoke-secret",
   "tls_enabled": true,
   "tls_cert_path": "certs/roodox-server-cert.pem",
   "tls_key_path": "certs/roodox-server-key.pem",
