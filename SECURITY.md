@@ -45,17 +45,14 @@ If you discover a suspected security issue, do not post the following directly i
   Sensitive deployment details needed to reproduce an attack
 
 当前推荐的报告方式：  
-Recommended reporting path for now:
+Recommended reporting path:
 
-1. 先在 GitHub 上创建一个最小化描述的问题，不附带敏感材料。  
-   Open a minimal GitHub issue without sensitive material.
-2. 明确标注这是 `security` 问题，并说明需要私下沟通。  
-   Clearly label it as a `security` issue and state that private coordination is needed.
-3. 仅在建立私下沟通渠道后再共享日志、配置片段或样本。  
-   Share logs, config fragments, or samples only after a private channel is established.
-
-如果后续启用了 GitHub private vulnerability reporting，应优先使用该渠道。  
-If GitHub private vulnerability reporting is enabled later, that channel should be preferred.
+1. 优先使用 GitHub 的私密漏洞上报功能。  
+   Please use GitHub private vulnerability reporting first.
+2. 如果私密上报不可用，再通过备用邮箱联系：`roodox.manager@outlook.com`。  
+   If private reporting is unavailable, use the backup contact: `roodox.manager@outlook.com`.
+3. 不要在公开 issue 中直接贴出 secret、私钥、客户端接入包或真实部署材料。  
+   Do not post secrets, private keys, client access bundles, or live deployment material in public issues.
 
 ## What to Include / 报告建议包含内容
 
