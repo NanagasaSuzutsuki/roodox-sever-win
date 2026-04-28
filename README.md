@@ -412,6 +412,8 @@ Related documents:
 - [OPERATIONS.md](OPERATIONS.md)
 - [QA.md](QA.md)
 - [OPEN_SOURCE_SPLIT.md](OPEN_SOURCE_SPLIT.md)
+- [SECURITY.md](SECURITY.md)
+- [PRIVACY_AUDIT.md](PRIVACY_AUDIT.md)
 
 ## Status / 当前状态
 
@@ -427,5 +429,5 @@ This public repository is currently centered on:
 - 带 overlay 语义的接入打包  
   Overlay-aware access packaging
 
-许可证仍待最终确定。  
-License selection has not been finalized yet.
+当前公开仓库采用 `Apache-2.0`。  
+This public repository currently uses `Apache-2.0`.
