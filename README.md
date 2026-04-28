@@ -51,6 +51,7 @@ Roodox is a Windows-first gRPC file service with device control-plane, TLS/auth 
 To keep the repository root lean, supporting docs now live under `docs/`:
 
 - [`docs/README.md`](docs/README.md)
+- [`docs/encyclopedia/README.md`](docs/encyclopedia/README.md)
 - [`docs/OPERATIONS.md`](docs/OPERATIONS.md)
 - [`docs/QA.md`](docs/QA.md)
 - [`docs/OPEN_SOURCE_SPLIT.md`](docs/OPEN_SOURCE_SPLIT.md)

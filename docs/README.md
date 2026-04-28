@@ -15,6 +15,8 @@ This directory consolidates the public-repo documentation, keeps the repository 
   Public-repo export boundaries and sanitization strategy
 - [`PRIVACY_AUDIT.md`](PRIVACY_AUDIT.md): 当前公开版本的隐私审计记录  
   Privacy-audit notes for the current public export
+- [`encyclopedia/README.md`](encyclopedia/README.md): 分章节的项目百科、接口索引、隐私与维护手册  
+  Topic-split project encyclopedia, interface index, privacy, and maintenance guide
 - [`../SECURITY.md`](../SECURITY.md): 安全报告方式与联系方式  
   Vulnerability reporting and security contact paths
 
