@@ -48,8 +48,8 @@ The following directories and files are generally safe to publish:
 - `workbench/index.html`
 - `go.mod`
 - `go.sum`
-- `QA.md`
-- `OPERATIONS.md`
+- `docs/QA.md`
+- `docs/OPERATIONS.md`
 - `README.md`
 - `roodox.config.example.json`
 

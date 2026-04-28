@@ -19,27 +19,27 @@ GUI or external admin tools should consume these gRPC APIs instead of reading SQ
 
 ## Background Service Startup / 后台服务启动
 
-支持的本地进程管理脚本位于 [`scripts/server`](scripts/server)：  
-Supported local process-management scripts live under [`scripts/server`](scripts/server):
+支持的本地进程管理脚本位于 [`../scripts/server`](../scripts/server)：  
+Supported local process-management scripts live under [`../scripts/server`](../scripts/server):
 
-- [`start-server.ps1`](scripts/server/start-server.ps1)
-- [`stop-server.ps1`](scripts/server/stop-server.ps1)
-- [`status-server.ps1`](scripts/server/status-server.ps1)
-- [`restart-server.ps1`](scripts/server/restart-server.ps1)
-- [`install-windows-service.ps1`](scripts/server/install-windows-service.ps1)
-- [`uninstall-windows-service.ps1`](scripts/server/uninstall-windows-service.ps1)
-- [`start-windows-service.ps1`](scripts/server/start-windows-service.ps1)
-- [`stop-windows-service.ps1`](scripts/server/stop-windows-service.ps1)
-- [`restart-windows-service.ps1`](scripts/server/restart-windows-service.ps1)
-- [`status-windows-service.ps1`](scripts/server/status-windows-service.ps1)
-- [`restore-database.ps1`](scripts/server/restore-database.ps1)
-- [`certificate-status.ps1`](scripts/server/certificate-status.ps1)
-- [`rotate-certificates.ps1`](scripts/server/rotate-certificates.ps1)
-- [`export-client-ca.ps1`](scripts/server/export-client-ca.ps1)
-- [`install-deployment.ps1`](scripts/server/install-deployment.ps1)
-- [`upgrade-deployment.ps1`](scripts/server/upgrade-deployment.ps1)
-- [`rollback-deployment.ps1`](scripts/server/rollback-deployment.ps1)
-- [`list-release-snapshots.ps1`](scripts/server/list-release-snapshots.ps1)
+- [`start-server.ps1`](../scripts/server/start-server.ps1)
+- [`stop-server.ps1`](../scripts/server/stop-server.ps1)
+- [`status-server.ps1`](../scripts/server/status-server.ps1)
+- [`restart-server.ps1`](../scripts/server/restart-server.ps1)
+- [`install-windows-service.ps1`](../scripts/server/install-windows-service.ps1)
+- [`uninstall-windows-service.ps1`](../scripts/server/uninstall-windows-service.ps1)
+- [`start-windows-service.ps1`](../scripts/server/start-windows-service.ps1)
+- [`stop-windows-service.ps1`](../scripts/server/stop-windows-service.ps1)
+- [`restart-windows-service.ps1`](../scripts/server/restart-windows-service.ps1)
+- [`status-windows-service.ps1`](../scripts/server/status-windows-service.ps1)
+- [`restore-database.ps1`](../scripts/server/restore-database.ps1)
+- [`certificate-status.ps1`](../scripts/server/certificate-status.ps1)
+- [`rotate-certificates.ps1`](../scripts/server/rotate-certificates.ps1)
+- [`export-client-ca.ps1`](../scripts/server/export-client-ca.ps1)
+- [`install-deployment.ps1`](../scripts/server/install-deployment.ps1)
+- [`upgrade-deployment.ps1`](../scripts/server/upgrade-deployment.ps1)
+- [`rollback-deployment.ps1`](../scripts/server/rollback-deployment.ps1)
+- [`list-release-snapshots.ps1`](../scripts/server/list-release-snapshots.ps1)
 
 这些脚本统一了以下行为：  
 These scripts standardize:
@@ -100,13 +100,13 @@ Installing or removing the Windows Service requires an elevated PowerShell sessi
 
 ## Workbench GUI / 运维工作台
 
-GUI 启动与打包脚本位于 [`scripts/workbench`](scripts/workbench)：  
-GUI entrypoints live under [`scripts/workbench`](scripts/workbench):
+GUI 启动与打包脚本位于 [`../scripts/workbench`](../scripts/workbench)：  
+GUI entrypoints live under [`../scripts/workbench`](../scripts/workbench):
 
-- [`start-gui.ps1`](scripts/workbench/start-gui.ps1)
-- [`start-gui.cmd`](scripts/workbench/start-gui.cmd)
-- [`build-gui.ps1`](scripts/workbench/build-gui.ps1)
-- [`build-gui.cmd`](scripts/workbench/build-gui.cmd)
+- [`start-gui.ps1`](../scripts/workbench/start-gui.ps1)
+- [`start-gui.cmd`](../scripts/workbench/start-gui.cmd)
+- [`build-gui.ps1`](../scripts/workbench/build-gui.ps1)
+- [`build-gui.cmd`](../scripts/workbench/build-gui.cmd)
 
 约定如下：  
 Rules:

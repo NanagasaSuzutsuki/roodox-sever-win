@@ -45,6 +45,18 @@ Roodox is a Windows-first gRPC file service with device control-plane, TLS/auth 
 - `scripts/workbench/`: GUI 启动与打包脚本 / GUI launch and packaging scripts
 - `workbench/`: Tauri + React 工作台 / Tauri + React workbench
 
+## Documentation Map / 文档地图
+
+为了让根目录保持精简，补充文档已收拢到 `docs/`：  
+To keep the repository root lean, supporting docs now live under `docs/`:
+
+- [`docs/README.md`](docs/README.md)
+- [`docs/OPERATIONS.md`](docs/OPERATIONS.md)
+- [`docs/QA.md`](docs/QA.md)
+- [`docs/OPEN_SOURCE_SPLIT.md`](docs/OPEN_SOURCE_SPLIT.md)
+- [`docs/PRIVACY_AUDIT.md`](docs/PRIVACY_AUDIT.md)
+- [`SECURITY.md`](SECURITY.md)
+
 ## Security Model / 安全模型
 
 Roodox 可以按以下方式运行：  
@@ -409,11 +421,11 @@ Run QA wrappers:
 补充文档：  
 Related documents:
 
-- [OPERATIONS.md](OPERATIONS.md)
-- [QA.md](QA.md)
-- [OPEN_SOURCE_SPLIT.md](OPEN_SOURCE_SPLIT.md)
+- [docs/OPERATIONS.md](docs/OPERATIONS.md)
+- [docs/QA.md](docs/QA.md)
+- [docs/OPEN_SOURCE_SPLIT.md](docs/OPEN_SOURCE_SPLIT.md)
 - [SECURITY.md](SECURITY.md)
-- [PRIVACY_AUDIT.md](PRIVACY_AUDIT.md)
+- [docs/PRIVACY_AUDIT.md](docs/PRIVACY_AUDIT.md)
 
 ## Status / 当前状态
 

@@ -5,7 +5,7 @@
 ## Audit Goal / 审计目标
 
 这份清单用于公开发布前确认仓库中不含真实环境隐私和敏感运行数据。  
-This checklist is used before public release to confirm that the repository does not contain live-environment privacy or sensitive runtime data.
+This checklist is used before public release to confirm that the repository does not contain live-environment privacy or sensitive runtime data, and it serves as the baseline for future re-checks.
 
 ## Checked Areas / 已检查范围
 

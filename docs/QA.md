@@ -35,14 +35,14 @@ Unless `-keep-artifacts` is specified, those temporary QA artifacts are cleaned 
 
 ## PowerShell Wrappers / PowerShell 包装脚本
 
-Windows 友好的包装脚本位于 [`scripts/qa`](scripts/qa)：  
-Windows-friendly wrappers live under [`scripts/qa`](scripts/qa):
+Windows 友好的包装脚本位于 [`../scripts/qa`](../scripts/qa)：  
+Windows-friendly wrappers live under [`../scripts/qa`](../scripts/qa):
 
-- [`run-live-regression.ps1`](scripts/qa/run-live-regression.ps1)
-- [`run-fault-injection.ps1`](scripts/qa/run-fault-injection.ps1)
-- [`run-soak.ps1`](scripts/qa/run-soak.ps1)
-- [`run-restart-recovery.ps1`](scripts/qa/run-restart-recovery.ps1)
-- [`run-full-qa.ps1`](scripts/qa/run-full-qa.ps1)
+- [`run-live-regression.ps1`](../scripts/qa/run-live-regression.ps1)
+- [`run-fault-injection.ps1`](../scripts/qa/run-fault-injection.ps1)
+- [`run-soak.ps1`](../scripts/qa/run-soak.ps1)
+- [`run-restart-recovery.ps1`](../scripts/qa/run-restart-recovery.ps1)
+- [`run-full-qa.ps1`](../scripts/qa/run-full-qa.ps1)
 
 示例：  
 Examples:
@@ -64,13 +64,13 @@ Use `-KeepLogs` or `-CaptureRestartServerLogs` only when probe output or redirec
 
 ## Deployment Lifecycle Smoke / 部署生命周期冒烟验证
 
-打包与证书生命周期的冒烟验证脚本位于 [`scripts/server/validate-deployment-lifecycle.ps1`](scripts/server/validate-deployment-lifecycle.ps1)。  
-Reusable packaging and certificate lifecycle smoke validation lives under [`scripts/server/validate-deployment-lifecycle.ps1`](scripts/server/validate-deployment-lifecycle.ps1).
+打包与证书生命周期的冒烟验证脚本位于 [`../scripts/server/validate-deployment-lifecycle.ps1`](../scripts/server/validate-deployment-lifecycle.ps1)。  
+Reusable packaging and certificate lifecycle smoke validation lives under [`../scripts/server/validate-deployment-lifecycle.ps1`](../scripts/server/validate-deployment-lifecycle.ps1).
 
 默认夹具配置：  
 Default fixture config:
 
-- [`testdata/deployment-smoke/roodox-smoke.config.json`](testdata/deployment-smoke/roodox-smoke.config.json)
+- [`../testdata/deployment-smoke/roodox-smoke.config.json`](../testdata/deployment-smoke/roodox-smoke.config.json)
 
 示例：  
 Example:
