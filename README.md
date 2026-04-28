@@ -1,67 +1,88 @@
 # Roodox
 
+Roodox 是一个以 Windows 为优先目标的 gRPC 文件服务，包含设备控制面、TLS/认证交付、远程构建编排，以及基于 Tauri 的运维工作台。  
 Roodox is a Windows-first gRPC file service with device control-plane, TLS/auth handoff, build orchestration, and a Tauri-based operator workbench.
 
-This repository contains:
+## Repository Contents / 仓库内容
 
-- a Go server with file, sync, lock, version, build, and admin APIs
-- a client connection library used by local tools and tests
-- PowerShell deployment and lifecycle scripts
-- a Tauri + React workbench for runtime operations and client handoff
-- a join-bundle format for shipping client-facing connection metadata
+- Go 服务端，提供文件、同步、锁、版本、构建和管理接口  
+  Go server with file, sync, lock, version, build, and admin APIs
+- 本地工具和测试使用的客户端连接库  
+  Client connection library used by local tools and tests
+- PowerShell 部署、升级、回滚和运维脚本  
+  PowerShell deployment, upgrade, rollback, and operations scripts
+- Tauri + React 运维工作台  
+  Tauri + React operator workbench
+- 用于客户端交付的 Join Bundle 格式  
+  Join-bundle format for client-facing access handoff
 
-## Current Scope
+## Current Scope / 当前范围
 
-Roodox currently focuses on these areas:
+- 基于 gRPC 的文件与目录操作  
+  File and directory operations over gRPC
+- 带版本控制的整文件写、区间写和截断  
+  Version-aware whole-file writes, range writes, and truncate support
+- 设备注册、心跳、挂载/同步状态上报、诊断上传  
+  Device registration, heartbeat, mount/sync reporting, and diagnostics upload
+- 基于 SQLite 的运行态、历史、锁和观测数据  
+  SQLite-backed runtime state, history, lock, and observability data
+- TLS 证书检查、轮换、客户端 CA 导出  
+  TLS certificate inspection, rotation, and client CA export
+- Windows 进程和服务生命周期管理  
+  Windows process and service lifecycle management
+- GUI 侧运维与客户端接入包导出  
+  GUI-based operations and client access export
 
-- file and directory operations over gRPC
-- optimistic version-aware writes, range writes, and truncate support
-- device registration, heartbeat, mount/sync reporting, and diagnostics upload
-- SQLite-backed runtime state, history, lock, and observability data
-- TLS certificate inspection, rotation, and client CA export
-- Windows process/service lifecycle management
-- GUI-based operations and client access export
+## Repository Layout / 目录结构
 
-## Repository Layout
+- `cmd/roodox_server`: 服务端入口 / server binary entrypoint
+- `cmd/roodox_qa`: QA 与回归工具 / QA and regression tool
+- `client/`: Go 客户端辅助库 / Go client helpers
+- `internal/`: 服务端、运行时、数据库、清理、控制面逻辑 / server, runtime, DB, cleanup, and control-plane packages
+- `proto/`: protobuf 与 gRPC 定义 / protobuf and gRPC definitions
+- `scripts/server/`: 服务生命周期、TLS、备份、升级、回滚 / service lifecycle, TLS, backup, upgrade, rollback
+- `scripts/qa/`: QA 包装脚本 / reusable QA wrappers
+- `scripts/workbench/`: GUI 启动与打包脚本 / GUI launch and packaging scripts
+- `workbench/`: Tauri + React 工作台 / Tauri + React workbench
 
-- `cmd/roodox_server`: server binary entrypoint
-- `cmd/roodox_qa`: QA and regression tool
-- `client/`: Go client helpers
-- `internal/`: server, runtime, DB, cleanup, and control-plane packages
-- `proto/`: protobuf and gRPC definitions
-- `scripts/server/`: service lifecycle, TLS, backup, upgrade, rollback
-- `scripts/qa/`: reusable QA wrappers
-- `scripts/workbench/`: GUI launch and packaging
-- `workbench/`: Tauri + React operator workbench
+## Security Model / 安全模型
 
-## Security Model
+Roodox 可以按以下方式运行：  
+Roodox can run with the following security baseline:
 
-Roodox can run with:
+- 启用 TLS  
+  TLS enabled
+- 启用共享密钥认证  
+  Shared-secret authentication enabled
+- 以 CA 根证书作为客户端信任输入  
+  Client trust distributed as a CA root certificate
 
-- TLS enabled
-- shared-secret authentication enabled
-- client trust distributed as a CA root certificate
-
-The intended client handoff baseline is:
+面向客户端的最小交付材料通常包括：  
+The intended client handoff baseline usually includes:
 
 - `host:port`
 - `tls_enabled`
 - `tls_server_name`
-- exported client CA root
-- shared secret when auth is enabled
-- an optional join bundle containing overlay and device bootstrap metadata
+- 导出的客户端 CA 根证书  
+  Exported client CA root
+- 认证开启时所需的共享密钥  
+  Shared secret when auth is enabled
+- 可选的 Join Bundle  
+  Optional join bundle with overlay and device bootstrap metadata
 
-## Quick Start
+## Quick Start / 快速开始
 
-### 1. Prepare config
+### 1. Prepare Config / 准备配置
 
+先从示例配置复制一份本地配置：  
 Create a local config from the example:
 
 ```powershell
 Copy-Item .\roodox.config.example.json .\roodox.config.json
 ```
 
-Then edit at least:
+至少修改这些字段：  
+At minimum, update these fields:
 
 - `root_dir`
 - `shared_secret`
@@ -70,14 +91,16 @@ Then edit at least:
 - `control_plane.join_bundle.service_discovery.host`
 - `control_plane.join_bundle.service_discovery.tls_server_name`
 
-### 2. Start the server
+### 2. Start the Server / 启动服务
 
-The simplest local path is:
+最简单的本地启动方式：  
+The simplest local startup path is:
 
 ```powershell
 .\scripts\server\start-server.ps1 -BuildIfMissing
 ```
 
+常用生命周期命令：  
 Common lifecycle commands:
 
 ```powershell
@@ -86,36 +109,49 @@ Common lifecycle commands:
 .\scripts\server\stop-server.ps1
 ```
 
+如果需要前台运行：  
 To run in the foreground instead:
 
 ```powershell
 .\scripts\server\start-server.ps1 -Foreground -BuildIfMissing
 ```
 
-### 3. Open the workbench
+### 3. Open the Workbench / 打开工作台
 
 ```powershell
 .\scripts\workbench\start-gui.cmd
 ```
 
+当前工作台覆盖这些功能：  
 The workbench currently covers:
 
-- runtime health and recent devices
-- device inventory and overlay labels
-- backup, TLS, and observability
-- client access baseline, join-bundle preview, and access export
-- local logs and config editing
+- 运行态健康与最近活跃设备  
+  Runtime health and recent devices
+- 设备清单和 overlay 标签  
+  Device inventory and overlay labels
+- 备份、TLS、观测指标  
+  Backup, TLS, and observability
+- 客户端接入基线、Join Bundle 预览和导出  
+  Client access baseline, join-bundle preview, and export
+- 本地日志和配置编辑  
+  Local logs and config editing
 
-## Join Bundle and Overlay Strategy
+## Join Bundle and Overlay Strategy / Join Bundle 与 Overlay 策略
 
+Roodox 不直接实现 Tailscale 或 EasyTier。  
 Roodox does not implement Tailscale or EasyTier itself.
 
+Roodox 的做法是把 overlay 视为独立网络层，并通过 Join Bundle 向客户端传递这些信息：  
 Instead, Roodox treats the overlay as a separate network layer and ships overlay metadata through the join bundle so clients know:
 
-- which overlay provider is expected
-- which overlay bootstrap JSON should be consumed by the client bootstrap layer
-- which Roodox service host, port, TLS, and auth values to use after the overlay is up
+- 预期的 overlay provider 是什么  
+  Which overlay provider is expected
+- overlay 启动所需的 JSON 引导参数  
+  Which overlay bootstrap JSON should be consumed by the client bootstrap layer
+- overlay 就绪后应连接的 Roodox 服务地址、TLS 和认证参数  
+  Which Roodox service host, port, TLS, and auth values to use after the overlay is up
 
+Join Bundle 负载字段包括：  
 The join bundle payload includes:
 
 - `overlay_provider`
@@ -128,24 +164,29 @@ The join bundle payload includes:
 - `server_id`
 - `device_group`
 - `shared_secret`
-- optional device identity fields
+- 可选设备身份字段  
+  Optional device identity fields
 
+服务端示例命令：  
 Server-side examples:
 
-- issue bundle as JSON:
+- 直接输出 Join Bundle JSON  
+  Issue bundle as JSON
 
 ```powershell
 .\roodox_server.exe -config .\roodox.config.json -issue-join-bundle-json
 ```
 
-- export client CA:
+- 导出客户端 CA  
+  Export client CA
 
 ```powershell
 .\scripts\server\export-client-ca.ps1 -DestinationPath .\handoff\roodox-ca-cert.pem
 ```
 
-### Direct / No Overlay
+### Direct / 无 Overlay
 
+如果客户端直接连接服务端：  
 If clients connect directly to the server address:
 
 ```json
@@ -166,17 +207,24 @@ If clients connect directly to the server address:
 }
 ```
 
-### Tailscale Usage
+### Tailscale Usage / Tailscale 用法
 
+适用于你希望通过私有 tailnet 建立点对点可达性，而不直接暴露 gRPC 端口到公网的场景。  
 Recommended when you want private point-to-point reachability without exposing the gRPC endpoint directly to the public internet.
 
+Roodox 中的使用方式：  
 How Roodox uses it:
 
-- set `overlay_provider` to `tailscale`
-- put Tailscale-specific bootstrap data into `overlay_join_config_json`
-- set `service_discovery.host` to a Tailscale IP or MagicDNS name reachable inside the tailnet
-- keep `tls_server_name` aligned with the server certificate SAN, not just the overlay IP
+- `overlay_provider` 设为 `tailscale`  
+  Set `overlay_provider` to `tailscale`
+- 把 Tailscale 的引导参数写入 `overlay_join_config_json`  
+  Put Tailscale-specific bootstrap data into `overlay_join_config_json`
+- `service_discovery.host` 使用 tailnet 内可达的 Tailscale IP 或 MagicDNS 名称  
+  Set `service_discovery.host` to a Tailscale IP or MagicDNS name reachable inside the tailnet
+- `tls_server_name` 应与服务端证书 SAN 保持一致，而不是简单等于 overlay IP  
+  Keep `tls_server_name` aligned with the server certificate SAN, not just the overlay IP
 
+示例：  
 Example:
 
 ```json
@@ -197,22 +245,32 @@ Example:
 }
 ```
 
+实践注意事项：  
 Practical notes:
 
-- If you use MagicDNS for `service_discovery.host`, clients still need a certificate whose DNS name matches `tls_server_name`.
-- If you terminate TLS on the Roodox server itself, distribute the exported CA root to clients.
-- The overlay JSON is treated as opaque by Roodox. Your client bootstrap or launcher decides how to consume it.
+- 如果 `service_discovery.host` 使用 MagicDNS，证书里的 DNS 名称仍然要和 `tls_server_name` 对齐。  
+  If you use MagicDNS for `service_discovery.host`, clients still need a certificate whose DNS name matches `tls_server_name`.
+- 如果 TLS 终止在 Roodox 服务端自身，客户端应安装导出的 CA 根证书。  
+  If you terminate TLS on the Roodox server itself, distribute the exported CA root to clients.
+- `overlay_join_config_json` 对 Roodox 而言是透明载荷，由你的客户端 bootstrap 或 launcher 负责消费。  
+  The overlay JSON is treated as opaque by Roodox. Your client bootstrap or launcher decides how to consume it.
 
-### EasyTier Usage
+### EasyTier Usage / EasyTier 用法
 
+适用于你希望客户端自行管理 overlay、并显式控制 peer bootstrap 和网络拓扑的场景。  
 Recommended when you want a user-managed overlay with explicit peer bootstrap and custom network topology.
 
+Roodox 中的使用方式：  
 How Roodox uses it:
 
-- set `overlay_provider` to `easytier`
-- put EasyTier bootstrap parameters into `overlay_join_config_json`
-- set `service_discovery.host` to the address reachable after EasyTier is connected
+- `overlay_provider` 设为 `easytier`  
+  Set `overlay_provider` to `easytier`
+- 把 EasyTier 引导参数写入 `overlay_join_config_json`  
+  Put EasyTier bootstrap parameters into `overlay_join_config_json`
+- `service_discovery.host` 指向 EasyTier 建链后客户端可达的地址  
+  Set `service_discovery.host` to the address reachable after EasyTier is connected
 
+示例：  
 Example:
 
 ```json
@@ -233,64 +291,89 @@ Example:
 }
 ```
 
+实践注意事项：  
 Practical notes:
 
-- Treat `overlay_join_config_json` as the client bootstrap contract for EasyTier, not as a server-enforced schema.
-- If clients connect through an overlay IP, keep `tls_server_name` pinned to the certificate identity you actually issued.
-- The workbench access page can preview and export this bundle for handoff.
+- 将 `overlay_join_config_json` 视为客户端 bootstrap 合同，而不是由服务端强校验的数据模型。  
+  Treat `overlay_join_config_json` as the client bootstrap contract for EasyTier, not as a server-enforced schema.
+- 即使客户端通过 overlay IP 连接，也应让 `tls_server_name` 绑定到真实证书身份。  
+  If clients connect through an overlay IP, keep `tls_server_name` pinned to the certificate identity you actually issued.
+- 工作台的接入页可以预览并导出这份交付包。  
+  The workbench access page can preview and export this bundle for handoff.
 
-## Workbench Access Flow
+## Workbench Access Flow / 工作台接入流程
 
+工作台有单独的接入页，用来维护：  
 The workbench has a dedicated access page that lets operators maintain:
 
-- client-facing host and port
-- TLS on/off and server name
-- shared-secret visibility and export
-- overlay provider and overlay bootstrap JSON
-- device labels written into the exported bundle
+- 面向客户端的 host 和 port  
+  Client-facing host and port
+- TLS 开关和 server name  
+  TLS on/off and server name
+- 共享密钥展示与导出  
+  Shared-secret visibility and export
+- overlay provider 和 overlay bootstrap JSON  
+  Overlay provider and overlay bootstrap JSON
+- 写入导出包中的设备标签  
+  Device labels written into the exported bundle
 
+典型操作流程：  
 Typical operator flow:
 
-1. Set the client-facing host, port, TLS, and overlay fields.
-2. Save access settings.
-3. Refresh the join-bundle preview.
-4. Export the client access bundle and CA root.
+1. 设置客户端可达的 host、port、TLS 和 overlay 字段。  
+   Set the client-facing host, port, TLS, and overlay fields.
+2. 保存接入配置。  
+   Save access settings.
+3. 刷新 Join Bundle 预览。  
+   Refresh the join-bundle preview.
+4. 导出客户端接入包和 CA 根证书。  
+   Export the client access bundle and CA root.
 
-## TLS and Certificate Operations
+## TLS and Certificate Operations / TLS 与证书操作
 
+检查当前证书状态：  
 Inspect current TLS material:
 
 ```powershell
 .\scripts\server\certificate-status.ps1
 ```
 
+轮换服务端叶子证书：  
 Rotate the server leaf certificate:
 
 ```powershell
 .\scripts\server\rotate-certificates.ps1 -RestartAfter
 ```
 
+同时轮换根 CA 和叶子证书：  
 Rotate both root CA and leaf certificate:
 
 ```powershell
 .\scripts\server\rotate-certificates.ps1 -RotateRootCA -RestartAfter
 ```
 
+重要规则：  
 Important rules:
 
-- leaf-only rotation keeps the same client trust root
-- root CA rotation requires redistributing a new client CA
-- clients should trust the exported CA root, not the leaf certificate
+- 只轮换叶子证书时，客户端信任根通常不变。  
+  Leaf-only rotation keeps the same client trust root.
+- 轮换根 CA 后，必须重新分发新的客户端 CA。  
+  Root CA rotation requires redistributing a new client CA.
+- 客户端应信任导出的 CA 根，而不是叶子证书。  
+  Clients should trust the exported CA root, not the leaf certificate.
 
-## GUI Build
+## GUI Build / GUI 构建
 
+开发环境要求：  
 Development requirements:
 
 - Go `1.24`
 - Node.js with `npm`
 - Rust toolchain
-- Tauri Windows build prerequisites for MSI packaging
+- Tauri Windows 构建依赖  
+  Tauri Windows build prerequisites for MSI packaging
 
+运行前端构建：  
 Run the web build:
 
 ```powershell
@@ -299,20 +382,23 @@ npm install
 npm run build
 ```
 
+构建打包版工作台：  
 Build the packaged workbench:
 
 ```powershell
 .\scripts\workbench\build-gui.cmd
 ```
 
-## Testing
+## Testing / 测试
 
+运行完整 Go 测试：  
 Run the full Go test suite:
 
 ```powershell
 go test ./...
 ```
 
+运行 QA 脚本：  
 Run QA wrappers:
 
 ```powershell
@@ -320,19 +406,26 @@ Run QA wrappers:
 .\scripts\qa\run-full-qa.ps1
 ```
 
-See:
+补充文档：  
+Related documents:
 
 - [OPERATIONS.md](OPERATIONS.md)
 - [QA.md](QA.md)
 - [OPEN_SOURCE_SPLIT.md](OPEN_SOURCE_SPLIT.md)
 
-## Status
+## Status / 当前状态
 
-This repository is currently centered on:
+当前这个公开仓库主要聚焦：  
+This public repository is currently centered on:
 
-- server operations closure
-- GUI productization
-- client handoff material generation
-- overlay-aware access packaging
+- 服务端运维收口  
+  Server operations closure
+- GUI 产品化  
+  GUI productization
+- 客户端交付材料生成  
+  Client handoff material generation
+- 带 overlay 语义的接入打包  
+  Overlay-aware access packaging
 
-License selection has not been finalized in this public export yet.
+许可证仍待最终确定。  
+License selection has not been finalized yet.
