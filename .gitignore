@@ -20,6 +20,7 @@
 # Workbench build outputs
 /workbench/node_modules/
 /workbench/dist/
+/workbench/src-tauri/gen/
 /workbench/src-tauri/target/
 
 # Logs and OS noise
