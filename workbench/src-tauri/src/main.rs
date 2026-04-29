@@ -5,7 +5,7 @@ mod models;
 
 use config::{
     config_path, detect_server_command, ensure_server_binary_current, project_root,
-    read_config_file, source_server_command, write_config_file,
+    read_config_file, source_server_command, suppress_command_window, write_config_file,
 };
 use models::*;
 use once_cell::sync::Lazy;
@@ -129,7 +129,9 @@ where
 }
 
 fn tool_info_from_path(path: String) -> ToolInfo {
-    let version_output = Command::new(&path).arg("--version").output();
+    let mut version_cmd = Command::new(&path);
+    suppress_command_window(&mut version_cmd);
+    let version_output = version_cmd.arg("--version").output();
     let version = match version_output {
         Ok(out) if out.status.success() => Some(first_line(&out.stdout)),
         Ok(out) => Some(first_line(&out.stderr)),
@@ -152,6 +154,7 @@ fn find_tool_with_dirs(tool: &str, extra_dirs: &[String]) -> ToolInfo {
     #[cfg(target_os = "windows")]
     let mut where_cmd = {
         let mut c = Command::new("where");
+        suppress_command_window(&mut c);
         c.arg(tool);
         c
     };
@@ -621,7 +624,9 @@ fn check_environment() -> Result<EnvCheck, String> {
 }
 
 fn run_winget_install(pkg: &str) -> Result<(), String> {
-    let output = Command::new("winget")
+    let mut cmd = Command::new("winget");
+    suppress_command_window(&mut cmd);
+    let output = cmd
         .arg("install")
         .arg("--id")
         .arg(pkg)

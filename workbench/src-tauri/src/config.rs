@@ -2,10 +2,14 @@ use crate::models::AppConfig;
 use serde_json::{Map, Value};
 use std::collections::HashSet;
 use std::fs;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const BOOTSTRAP_FILE_NAME: &str = "roodox-workbench.bootstrap.json";
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Debug, Clone, serde::Deserialize)]
 struct BootstrapConfig {
@@ -704,7 +708,9 @@ pub fn ensure_server_binary_current(config_path: &Path) -> Result<Option<PathBuf
     fs::create_dir_all(&go_mod_cache)
         .map_err(|e| format!("create go mod cache dir failed: {e}"))?;
 
-    let output = Command::new("go")
+    let mut cmd = Command::new("go");
+    suppress_command_window(&mut cmd);
+    let output = cmd
         .arg("build")
         .arg("-o")
         .arg(&binary_path)
@@ -733,6 +739,7 @@ pub fn detect_server_command(config_path: &Path) -> Result<Command, String> {
     if let Some(binary) = server_binary_path(config_path) {
         if binary.exists() {
             let mut cmd = Command::new(binary);
+            suppress_command_window(&mut cmd);
             cmd.current_dir(&config_dir);
             return Ok(cmd);
         }
@@ -741,6 +748,7 @@ pub fn detect_server_command(config_path: &Path) -> Result<Command, String> {
     let root = project_root();
     if root.join("go.mod").exists() && root.join("cmd").join("roodox_server").exists() {
         let mut cmd = Command::new("go");
+        suppress_command_window(&mut cmd);
         cmd.arg("run").arg("./cmd/roodox_server");
         cmd.current_dir(root);
         return Ok(cmd);
@@ -756,6 +764,7 @@ pub fn source_server_command() -> Option<Command> {
     }
 
     let mut cmd = Command::new("go");
+    suppress_command_window(&mut cmd);
     cmd.arg("run").arg("./cmd/roodox_server");
     cmd.current_dir(root);
     Some(cmd)
@@ -763,4 +772,12 @@ pub fn source_server_command() -> Option<Command> {
 
 fn output_text(output: &[u8]) -> String {
     String::from_utf8_lossy(output).trim().to_string()
+}
+
+pub fn suppress_command_window(cmd: &mut Command) -> &mut Command {
+    #[cfg(target_os = "windows")]
+    {
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
 }

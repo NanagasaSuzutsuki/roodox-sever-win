@@ -2683,7 +2683,7 @@ dependencies = [
 
 [[package]]
 name = "roodox-workbench"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "once_cell",
  "serde",

@@ -46,7 +46,6 @@ function Write-ReleaseReadme {
     param(
         [string]$Path,
         [string]$Version,
-        [string]$MsiFileName,
         [string]$SetupFileName
     )
 
@@ -56,15 +55,13 @@ function Write-ReleaseReadme {
         "Contents:",
         "- roodox_server.exe",
         "- roodox-workbench.exe",
+        "- start-roodox-workbench.cmd",
         "- roodox.config.json",
         "- roodox.config.example.json",
         "- scripts\\server\\",
         "- docs\\",
         "- README.md / SECURITY.md / LICENSE"
     )
-    if (-not [string]::IsNullOrWhiteSpace($MsiFileName)) {
-        $lines += "- $MsiFileName"
-    }
     if (-not [string]::IsNullOrWhiteSpace($SetupFileName)) {
         $lines += "- $SetupFileName"
     }
@@ -362,6 +359,10 @@ if ([string]::IsNullOrWhiteSpace($resolvedVersion)) {
     throw "release version is empty"
 }
 
+if ($BuildMsi) {
+    Write-Warning "Standalone Workbench MSI output is disabled. Continuing with the portable bundle and optional all-in-one installer."
+}
+
 $layout = Get-RoodoxWorkbenchLayout -ConfigPath (Join-Path $repoRoot "roodox.config.json")
 $serverExe = Join-Path $repoRoot "roodox_server.exe"
 $releaseRoot = Join-Path $repoRoot "artifacts/release"
@@ -382,7 +383,7 @@ finally {
     Pop-Location
 }
 
-Invoke-RoodoxWorkbenchTauriBuild -Layout $layout -Mode $(if ($BuildMsi) { "msi" } else { "run" })
+Invoke-RoodoxWorkbenchTauriBuild -Layout $layout -Mode "run"
 
 Reset-Directory -Path $bundleDir
 New-Item -ItemType Directory -Force -Path (Join-Path $bundleDir "scripts"), (Join-Path $bundleDir "docs") | Out-Null
@@ -406,15 +407,6 @@ Write-PortableBootstrap -Path (Join-Path $bundleDir "roodox-workbench.bootstrap.
 Write-WorkbenchLauncher -Path (Join-Path $bundleDir "start-roodox-workbench.cmd")
 
 $msiPath = $null
-$msiName = ""
-if ($BuildMsi) {
-    $msiPath = Get-RoodoxWorkbenchLatestMsiPath -Layout $layout
-    if ($null -eq $msiPath) {
-        throw "MSI bundle not found under $($layout.BundleMsiDir)"
-    }
-    $msiName = [System.IO.Path]::GetFileName($msiPath)
-    Copy-Item -LiteralPath $msiPath -Destination (Join-Path $bundleDir $msiName) -Force
-}
 
 $setupPath = $null
 $setupName = ""
@@ -424,7 +416,7 @@ if ($BuildInstaller) {
     $setupName = [System.IO.Path]::GetFileName($setupPath)
 }
 
-Write-ReleaseReadme -Path (Join-Path $bundleDir "RELEASE.txt") -Version $resolvedVersion -MsiFileName $msiName -SetupFileName $setupName
+Write-ReleaseReadme -Path (Join-Path $bundleDir "RELEASE.txt") -Version $resolvedVersion -SetupFileName $setupName
 
 if (Test-Path -LiteralPath $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force

@@ -1,7 +1,7 @@
 # Roodox Server Operations / Roodox 服务端运维
 
-本文描述当前公开仓库中的服务端运维面、GUI 运维面、TLS 生命周期、数据库维护、升级和回滚入口。  
-This document describes the server operations surface, GUI operations surface, TLS lifecycle, database maintenance, upgrade, and rollback entrypoints in the public repository.
+本文描述服务端运维面、GUI 运维面、TLS 生命周期、数据库维护、升级和回滚入口。  
+This document describes the server operations surface, GUI operations surface, TLS lifecycle, database maintenance, upgrade, and rollback entrypoints.
 
 ## Runtime Management Surface / 运行态管理接口
 
@@ -113,13 +113,13 @@ Rules:
 
 - `start-gui.*` 是标准本地启动方式，会在需要时通过 Tauri 构建 GUI，并写入 bootstrap 文件。  
   `start-gui.*` is the supported local launch path. It builds the GUI through Tauri when needed and writes a bootstrap file.
-- `build-gui.*` 是标准交付构建方式，会输出 MSI 和本地便携包。  
-  `build-gui.*` is the supported distribution path. It builds the MSI and stages a local portable package.
+- `build-gui.*` 是标准交付构建方式，会输出便携 GUI 包和交付目录。  
+  `build-gui.*` is the supported distribution path. It stages a portable GUI package and the handoff delivery directory.
 - 不建议直接运行未经 Tauri 启动流程产出的原始 Rust 输出。  
   Directly launching raw Rust outputs is discouraged unless they were produced through the Tauri build path.
 
-当前工作台范围：  
-Current workbench scope:
+工作台功能：  
+Workbench functions:
 
 - dashboard：运行态总览和最近设备  
   Dashboard: runtime summary and recent devices
@@ -129,8 +129,8 @@ Current workbench scope:
   Operations: backup, TLS, CA export, observability metrics
 - access：客户端接入参数、Join Bundle 预览、导出交付包  
   Access: client-facing connection inputs, join-bundle preview, exportable handoff package
-- logs：GUI 当前会话日志  
-  Logs: current GUI session service output
+- logs：GUI 会话日志  
+  Logs: GUI session service output
 - settings/security：本地配置和环境检查  
   Settings/security: local config, environment checks, TLS/auth inputs
 

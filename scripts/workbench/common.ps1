@@ -142,15 +142,13 @@ function Copy-RoodoxWorkbenchDirectoryContents {
 
 function Write-RoodoxWorkbenchDeliveryReadme {
     param(
-        [psobject]$Layout,
-        [string]$MsiFileName
+        [psobject]$Layout
     )
 
     $readme = @"
-This delivery package contains the current GUI installer and the current client handoff materials.
+This delivery package contains the portable GUI build and the current client handoff materials.
 
 Contents:
-- $MsiFileName
 - portable\
 - handoff\
 
@@ -221,14 +219,8 @@ If the server config path changes, rebuild this portable package so the bootstra
 '@
     Set-Content -LiteralPath $Layout.PortableReadmePath -Value $readme -Encoding ascii
 
-    $msiOutputPath = $null
     if ($IncludeMsi) {
-        $msiPath = Get-RoodoxWorkbenchLatestMsiPath -Layout $Layout
-        if ($null -eq $msiPath) {
-            throw "MSI bundle not found under $($Layout.BundleMsiDir)"
-        }
-        $msiOutputPath = Join-Path $Layout.ArtifactRoot ([System.IO.Path]::GetFileName($msiPath))
-        Copy-Item -LiteralPath $msiPath -Destination $msiOutputPath -Force
+        Write-Warning "Standalone Workbench MSI output is disabled. Continuing with the portable delivery package."
     }
 
     Reset-RoodoxWorkbenchDirectory -Path $Layout.DeliveryDir
@@ -236,14 +228,8 @@ If the server config path changes, rebuild this portable package so the bootstra
     if (-not [string]::IsNullOrWhiteSpace($HandoffSourceDir)) {
         Copy-RoodoxWorkbenchDirectoryContents -SourceDir $HandoffSourceDir -DestinationDir $Layout.DeliveryHandoffDir
     }
-    if ($msiOutputPath) {
-        Copy-Item -LiteralPath $msiOutputPath -Destination (Join-Path $Layout.DeliveryDir ([System.IO.Path]::GetFileName($msiOutputPath))) -Force
-    }
-    $msiFileName = ""
-    if ($msiOutputPath) {
-        $msiFileName = [System.IO.Path]::GetFileName($msiOutputPath)
-    }
-    Write-RoodoxWorkbenchDeliveryReadme -Layout $Layout -MsiFileName $msiFileName
+    $msiOutputPath = $null
+    Write-RoodoxWorkbenchDeliveryReadme -Layout $Layout
 
     if (Test-Path -LiteralPath $Layout.DeliveryZipPath) {
         Remove-Item -LiteralPath $Layout.DeliveryZipPath -Force

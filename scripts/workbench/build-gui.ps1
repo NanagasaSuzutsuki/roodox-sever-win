@@ -49,8 +49,8 @@ if (-not $runtimeMode.ServiceRunning -and -not $runtimeMode.ManagedProcessRunnin
 }
 Sync-RoodoxWorkbenchHandoffArtifacts -WorkbenchLayout $layout -ServerLayout $serverLayout
 
-Invoke-RoodoxWorkbenchTauriBuild -Layout $layout -Mode "msi"
-$published = Publish-RoodoxWorkbenchArtifacts -Layout $layout -HandoffSourceDir $layout.HandoffSourceDir -IncludeMsi
+Invoke-RoodoxWorkbenchTauriBuild -Layout $layout -Mode "run"
+$published = Publish-RoodoxWorkbenchArtifacts -Layout $layout -HandoffSourceDir $layout.HandoffSourceDir
 
 [pscustomobject]@{
     ArtifactRoot = $published.ArtifactRoot

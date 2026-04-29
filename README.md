@@ -16,7 +16,7 @@ Roodox is a Windows-first gRPC file service with device control-plane, TLS/auth 
 - 用于客户端交付的 Join Bundle 格式  
   Join-bundle format for client-facing access handoff
 
-## Current Scope / 当前范围
+## Key Capabilities / 功能概览
 
 - 基于 gRPC 的文件与目录操作  
   File and directory operations over gRPC
@@ -54,8 +54,6 @@ To keep the repository root lean, supporting docs now live under `docs/`:
 - [`docs/encyclopedia/README.md`](docs/encyclopedia/README.md)
 - [`docs/OPERATIONS.md`](docs/OPERATIONS.md)
 - [`docs/QA.md`](docs/QA.md)
-- [`docs/OPEN_SOURCE_SPLIT.md`](docs/OPEN_SOURCE_SPLIT.md)
-- [`docs/PRIVACY_AUDIT.md`](docs/PRIVACY_AUDIT.md)
 - [`SECURITY.md`](SECURITY.md)
 
 ## Security Model / 安全模型
@@ -135,8 +133,8 @@ To run in the foreground instead:
 .\scripts\workbench\start-gui.cmd
 ```
 
-当前工作台覆盖这些功能：  
-The workbench currently covers:
+工作台覆盖这些功能：  
+The workbench covers:
 
 - 运行态健康与最近活跃设备  
   Runtime health and recent devices
@@ -344,8 +342,8 @@ Typical operator flow:
 
 ## TLS and Certificate Operations / TLS 与证书操作
 
-检查当前证书状态：  
-Inspect current TLS material:
+检查证书状态：  
+Inspect TLS material:
 
 ```powershell
 .\scripts\server\certificate-status.ps1
@@ -384,7 +382,7 @@ Development requirements:
 - Node.js with `npm`
 - Rust toolchain
 - Tauri Windows 构建依赖  
-  Tauri Windows build prerequisites for MSI packaging
+  Tauri Windows build prerequisites for packaged builds
 
 运行前端构建：  
 Run the web build:
@@ -395,18 +393,18 @@ npm install
 npm run build
 ```
 
-构建打包版工作台：  
-Build the packaged workbench:
+构建便携版工作台交付包：  
+Build the portable workbench delivery package:
 
 ```powershell
 .\scripts\workbench\build-gui.cmd
 ```
 
-构建完整发布产物（便携包 + GUI MSI + 一体化安装包）：  
-Build the full release set (portable bundle + GUI MSI + all-in-one installer):
+构建完整发布产物（便携包 + 一体化安装包）：  
+Build the full release set (portable bundle + all-in-one installer):
 
 ```powershell
-.\scripts\release\build-release.ps1 -BuildMsi -BuildInstaller
+.\scripts\release\build-release.ps1 -BuildInstaller
 ```
 
 一体化安装包默认把程序文件放到 `Program Files\Roodox Server`，把可写配置和运行数据放到 `C:\ProgramData\Roodox`。  
@@ -446,23 +444,11 @@ Related documents:
 
 - [docs/OPERATIONS.md](docs/OPERATIONS.md)
 - [docs/QA.md](docs/QA.md)
-- [docs/OPEN_SOURCE_SPLIT.md](docs/OPEN_SOURCE_SPLIT.md)
+- [docs/README.md](docs/README.md)
+- [docs/encyclopedia/README.md](docs/encyclopedia/README.md)
 - [SECURITY.md](SECURITY.md)
-- [docs/PRIVACY_AUDIT.md](docs/PRIVACY_AUDIT.md)
 
-## Status / 当前状态
+## License / 许可证
 
-当前这个公开仓库主要聚焦：  
-This public repository is currently centered on:
-
-- 服务端运维收口  
-  Server operations closure
-- GUI 产品化  
-  GUI productization
-- 客户端交付材料生成  
-  Client handoff material generation
-- 带 overlay 语义的接入打包  
-  Overlay-aware access packaging
-
-当前公开仓库采用 `Apache-2.0`。  
-This public repository currently uses `Apache-2.0`.
+本仓库采用 `Apache-2.0` 许可证。  
+This repository is released under `Apache-2.0`.
