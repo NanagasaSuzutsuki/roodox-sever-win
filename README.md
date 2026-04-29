@@ -380,7 +380,7 @@ Important rules:
 开发环境要求：  
 Development requirements:
 
-- Go `1.24`
+- Go `1.25`
 - Node.js with `npm`
 - Rust toolchain
 - Tauri Windows 构建依赖  

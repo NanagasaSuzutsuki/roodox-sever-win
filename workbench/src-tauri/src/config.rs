@@ -52,6 +52,22 @@ fn bootstrap_path() -> Option<PathBuf> {
     Some(dir.join(BOOTSTRAP_FILE_NAME))
 }
 
+fn resolve_bootstrap_value(path: &str) -> Option<PathBuf> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let candidate = PathBuf::from(trimmed);
+    if candidate.is_absolute() {
+        return Some(candidate);
+    }
+
+    let bootstrap = bootstrap_path()?;
+    let base_dir = bootstrap.parent()?;
+    Some(base_dir.join(candidate))
+}
+
 fn read_bootstrap() -> Option<BootstrapConfig> {
     let path = bootstrap_path()?;
     if !path.exists() {
@@ -64,12 +80,7 @@ fn read_bootstrap() -> Option<BootstrapConfig> {
 fn config_path_from_bootstrap() -> Option<PathBuf> {
     let bootstrap = read_bootstrap()?;
     let path = bootstrap.config_path?;
-    let trimmed = path.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(PathBuf::from(trimmed))
-    }
+    resolve_bootstrap_value(&path)
 }
 
 fn project_root_from_env() -> Option<PathBuf> {
@@ -85,12 +96,7 @@ fn project_root_from_env() -> Option<PathBuf> {
 fn project_root_from_bootstrap() -> Option<PathBuf> {
     let bootstrap = read_bootstrap()?;
     let path = bootstrap.project_root?;
-    let trimmed = path.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(PathBuf::from(trimmed))
-    }
+    resolve_bootstrap_value(&path)
 }
 
 fn candidate_search_roots() -> Vec<PathBuf> {
