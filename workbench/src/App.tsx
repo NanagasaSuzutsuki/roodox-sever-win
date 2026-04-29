@@ -1,263 +1,43 @@
-﻿import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
-type Lang = "zh" | "en";
-type ViewKey = "dashboard" | "devices" | "operations" | "access" | "logs" | "settings" | "security";
-type DeviceFilter = "all" | "online" | "degraded" | "offline" | "mounted" | `role:${string}` | `overlay:${string}`;
-type DeviceSort = "recent" | "name";
-
-type AppConfig = {
-  addr: string;
-  data_root: string;
-  root_dir: string;
-  remote_build_enabled: boolean;
-  build_tool_dirs: string[];
-  required_build_tools: string[];
-  auth_enabled: boolean;
-  shared_secret: string;
-  tls_enabled: boolean;
-  tls_cert_path: string;
-  tls_key_path: string;
-  bundle_default_device_group: string;
-  bundle_overlay_provider: string;
-  bundle_overlay_join_config_json: string;
-  bundle_service_mode: string;
-  bundle_service_host: string;
-  bundle_service_port: number;
-  bundle_use_tls: boolean;
-  bundle_tls_server_name: string;
-};
-
-type ServerStatus = {
-  running: boolean;
-  addr?: string;
-  root_dir?: string;
-  remote_build?: boolean;
-  last_error?: string;
-  installing?: boolean;
-};
-
-type ToolInfo = { installed: boolean; path?: string; version?: string; error?: string };
-type EnvCheck = {
-  os: string;
-  winget_installed: boolean;
-  tools: Record<string, ToolInfo>;
-  recommended_tool_dirs: string[];
-  config_tool_dirs: string[];
-};
-
-type FileStatSummary = { path: string; exists: boolean; size_bytes: number; modified_at_unix: number };
-type CheckpointStatus = {
-  last_checkpoint_at_unix: number;
-  mode: string;
-  busy_readers: number;
-  log_frames: number;
-  checkpointed_frames: number;
-  last_error: string;
-};
-type BackupStatus = {
-  dir: string;
-  interval_seconds: number;
-  keep_latest: number;
-  last_backup_at_unix: number;
-  last_backup_path: string;
-  last_error: string;
-};
-
-type WorkbenchRuntime = {
-  server_id: string;
-  listen_addr: string;
-  root_dir: string;
-  db_path: string;
-  tls_enabled: boolean;
-  auth_enabled: boolean;
-  started_at_unix: number;
-  health_state: string;
-  health_message: string;
-  db_file: FileStatSummary;
-  wal_file: FileStatSummary;
-  shm_file: FileStatSummary;
-  checkpoint: CheckpointStatus;
-  backup: BackupStatus;
-};
-
-type DeviceSummary = {
-  device_id: string;
-  display_name: string;
-  role: string;
-  overlay_provider: string;
-  overlay_address: string;
-  online_state: string;
-  last_seen_at: number;
-  sync_state: string;
-  mount_state: string;
-  client_version: string;
-  policy_revision: number;
-};
-
-type WorkbenchSnapshot = {
-  runtime: WorkbenchRuntime | null;
-  devices: DeviceSummary[];
-  collected_at_unix: number;
-  query_error?: string | null;
-};
-
-type HotPathMetric = { path: string; count: number };
-type RPCMetric = { method: string; count: number; error_count: number; p50_ms: number; p95_ms: number; p99_ms: number };
-type BuildObservability = {
-  success_count: number;
-  failure_count: number;
-  log_bytes: number;
-  queue_wait_count: number;
-  queue_wait_p50_ms: number;
-  queue_wait_p95_ms: number;
-  queue_wait_p99_ms: number;
-  duration_count: number;
-  duration_p50_ms: number;
-  duration_p95_ms: number;
-  duration_p99_ms: number;
-};
-type WorkbenchObservabilitySnapshot = {
-  write_file_range_calls: number;
-  write_file_range_bytes: number;
-  write_file_range_conflicts: number;
-  small_write_bursts: number;
-  small_write_hot_paths: HotPathMetric[];
-  build: BuildObservability;
-  rpc_metrics: RPCMetric[];
-  collected_at_unix: number;
-};
-
-type TLSStatus = {
-  cert_path: string;
-  key_path: string;
-  root_cert_path: string;
-  root_key_path: string;
-  server_cert_exists: boolean;
-  server_key_exists: boolean;
-  root_cert_exists: boolean;
-  root_key_exists: boolean;
-  server_subject: string;
-  root_subject: string;
-  server_dns_names: string[];
-  server_not_before_unix: number;
-  server_not_after_unix: number;
-  root_not_before_unix: number;
-  root_not_after_unix: number;
-  root_is_ca: boolean;
-  server_valid: boolean;
-  root_valid: boolean;
-  overall_valid: boolean;
-};
-
-type BackupTriggerResult = { created_at_unix: number; path: string };
-type ExportClientCAResult = { root_cert_path: string; exported_path: string };
-type JoinBundleRequest = { device_id: string; device_name: string; device_role: string; device_group: string };
-type JoinBundleView = {
-  version: number;
-  overlay_provider: string;
-  overlay_join_config_json: string;
-  service_discovery_mode: string;
-  service_host: string;
-  service_port: number;
-  use_tls: boolean;
-  tls_server_name: string;
-  server_id: string;
-  device_group: string;
-  shared_secret: string;
-  device_id: string;
-  device_name: string;
-  device_role: string;
-};
-type IssueJoinBundleResult = { bundle_json: string; bundle: JoinBundleView };
-type ExportClientAccessResult = { export_dir: string; bundle_path: string; ca_path?: string | null };
-
-const defaultConfig: AppConfig = {
-  addr: ":50051",
-  data_root: "",
-  root_dir: "",
-  remote_build_enabled: true,
-  build_tool_dirs: [],
-  required_build_tools: ["cmake", "make", "build-essential"],
-  auth_enabled: false,
-  shared_secret: "",
-  tls_enabled: false,
-  tls_cert_path: "certs/roodox-server-cert.pem",
-  tls_key_path: "certs/roodox-server-key.pem",
-  bundle_default_device_group: "default",
-  bundle_overlay_provider: "",
-  bundle_overlay_join_config_json: "{}",
-  bundle_service_mode: "static",
-  bundle_service_host: "",
-  bundle_service_port: 50051,
-  bundle_use_tls: false,
-  bundle_tls_server_name: ""
-};
-
-const emptySnapshot: WorkbenchSnapshot = { runtime: null, devices: [], collected_at_unix: 0, query_error: null };
-const emptyObservability: WorkbenchObservabilitySnapshot = {
-  write_file_range_calls: 0,
-  write_file_range_bytes: 0,
-  write_file_range_conflicts: 0,
-  small_write_bursts: 0,
-  small_write_hot_paths: [],
-  build: { success_count: 0, failure_count: 0, log_bytes: 0, queue_wait_count: 0, queue_wait_p50_ms: 0, queue_wait_p95_ms: 0, queue_wait_p99_ms: 0, duration_count: 0, duration_p50_ms: 0, duration_p95_ms: 0, duration_p99_ms: 0 },
-  rpc_metrics: [],
-  collected_at_unix: 0
-};
-const emptyTLS: TLSStatus = {
-  cert_path: "",
-  key_path: "",
-  root_cert_path: "",
-  root_key_path: "",
-  server_cert_exists: false,
-  server_key_exists: false,
-  root_cert_exists: false,
-  root_key_exists: false,
-  server_subject: "",
-  root_subject: "",
-  server_dns_names: [],
-  server_not_before_unix: 0,
-  server_not_after_unix: 0,
-  root_not_before_unix: 0,
-  root_not_after_unix: 0,
-  root_is_ca: false,
-  server_valid: false,
-  root_valid: false,
-  overall_valid: false
-};
-
-const toMultiline = (value: string[]) => value.join("\n");
-const initialLang = (): Lang => {
-  const saved = localStorage.getItem("roodox.workbench.lang");
-  return saved === "zh" || saved === "en" ? saved : "zh";
-};
-const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
-const formatTime = (value: number | undefined, lang: Lang, fallback: string) =>
-  !value || value <= 0 ? fallback : new Intl.DateTimeFormat(lang === "zh" ? "zh-CN" : "en-US", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value * 1000));
-const formatNumber = (value: number | undefined, lang: Lang, fallback: string) =>
-  value === undefined || value === null || Number.isNaN(value) ? fallback : new Intl.NumberFormat(lang === "zh" ? "zh-CN" : "en-US").format(value);
-const formatBytes = (value: number | undefined, lang: Lang, fallback: string) => {
-  if (value === undefined || value === null || Number.isNaN(value)) return fallback;
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let size = Math.abs(value);
-  let idx = 0;
-  while (size >= 1024 && idx < units.length - 1) {
-    size /= 1024;
-    idx += 1;
-  }
-  return `${new Intl.NumberFormat(lang === "zh" ? "zh-CN" : "en-US", { maximumFractionDigits: size >= 10 || idx === 0 ? 0 : 1 }).format(size)} ${units[idx]}`;
-};
-const formatMillis = (value: number | undefined, lang: Lang, fallback: string) =>
-  value === undefined || value === null || Number.isNaN(value) ? fallback : value >= 1000 ? `${new Intl.NumberFormat(lang === "zh" ? "zh-CN" : "en-US", { maximumFractionDigits: value >= 10000 ? 0 : 1 }).format(value / 1000)} s` : `${formatNumber(value, lang, fallback)} ms`;
-const formatInterval = (value: number | undefined, lang: Lang, fallback: string) => {
-  if (!value || value <= 0) return fallback;
-  if (value % 3600 === 0) return `${formatNumber(value / 3600, lang, fallback)} h`;
-  if (value % 60 === 0) return `${formatNumber(value / 60, lang, fallback)} min`;
-  return `${formatNumber(value, lang, fallback)} s`;
-};
-const isMountedState = (value: string) => ["mounted", "ready", "active"].includes(value.trim().toLowerCase());
-
+import {
+  defaultClientAccessExportDir,
+  defaultClientCAExportPath,
+  defaultConfig,
+  defaultJoinRequest,
+  emptyObservability,
+  emptySnapshot,
+  emptyTLS
+} from "./workbench/defaults";
+import {
+  errorText,
+  formatBytes,
+  formatInterval,
+  formatMillis,
+  formatNumber,
+  formatTime,
+  initialLang,
+  isMountedState,
+  toMultiline
+} from "./workbench/format";
+import type {
+  AppConfig,
+  BackupTriggerResult,
+  DeviceFilter,
+  DeviceSort,
+  EnvCheck,
+  ExportClientAccessResult,
+  ExportClientCAResult,
+  IssueJoinBundleResult,
+  JoinBundleRequest,
+  Lang,
+  ServerStatus,
+  TLSStatus,
+  ViewKey,
+  WorkbenchObservabilitySnapshot,
+  WorkbenchSnapshot
+} from "./workbench/types";
 export default function App() {
   const [lang, setLang] = useState<Lang>(initialLang);
   const [view, setView] = useState<ViewKey>("dashboard");
@@ -275,27 +55,27 @@ export default function App() {
   const [deviceFilter, setDeviceFilter] = useState<DeviceFilter>("all");
   const [deviceSort, setDeviceSort] = useState<DeviceSort>("recent");
   const [logFilter, setLogFilter] = useState("");
-  const [exportPath, setExportPath] = useState("artifacts/handoff/roodox-ca-cert.pem");
-  const [accessExportDir, setAccessExportDir] = useState("artifacts/handoff/client-access");
-  const [joinRequest, setJoinRequest] = useState<JoinBundleRequest>({ device_id: "", device_name: "", device_role: "", device_group: "" });
+  const [exportPath, setExportPath] = useState(defaultClientCAExportPath);
+  const [accessExportDir, setAccessExportDir] = useState(defaultClientAccessExportDir);
+  const [joinRequest, setJoinRequest] = useState<JoinBundleRequest>(defaultJoinRequest);
   const [accessBundle, setAccessBundle] = useState<IssueJoinBundleResult | null>(null);
   const [showAccessSecret, setShowAccessSecret] = useState(false);
   const deferredSearch = useDeferredValue(deviceSearch);
   const t = (zh: string, en: string) => (lang === "zh" ? zh : en);
-  const unknown = t("æœªçŸ¥", "Unknown");
-  const none = t("æ— ", "None");
-  const never = t("ä»Žæœª", "Never");
-  const yes = t("æ˜¯", "Yes");
-  const no = t("å¦", "No");
+  const unknown = t("未知", "Unknown");
+  const none = t("无", "None");
+  const never = t("从未", "Never");
+  const yes = t("是", "Yes");
+  const no = t("否", "No");
   const runtime = snapshot.runtime;
   const collator = useMemo(() => new Intl.Collator(lang === "zh" ? ["zh-Hans-CN-u-co-pinyin", "zh-CN", "en"] : ["en", "zh-Hans-CN-u-co-pinyin"], { sensitivity: "base", numeric: true }), [lang]);
 
   const statusText = useMemo(() => {
-    const running = t("æœåŠ¡è¿è¡Œä¸­", "Server running");
-    const stopped = t("æœåŠ¡æœªè¿è¡Œ", "Server stopped");
-    const installing = status.installing ? ` Â· ${t("çŽ¯å¢ƒå®‰è£…ä¸­", "Installer running")}` : "";
+    const running = t("服务运行中", "Server running");
+    const stopped = t("服务未运行", "Server stopped");
+    const installing = status.installing ? ` ? ${t("环境安装中", "Installer running")}` : "";
     if (status.running) return `${running}${status.addr ? ` (${status.addr})` : ""}${installing}`;
-    if (status.last_error) return `${stopped} Â· ${status.last_error}${installing}`;
+    if (status.last_error) return `${stopped} ? ${status.last_error}${installing}`;
     return `${stopped}${installing}`;
   }, [lang, status]);
 
@@ -339,9 +119,9 @@ export default function App() {
     return keyword ? logs.filter((line) => line.toLowerCase().includes(keyword)) : logs;
   }, [logFilter, logs]);
   const files = [
-    { label: t("æ•°æ®åº“æ–‡ä»¶", "Database file"), value: runtime?.db_file },
-    { label: t("WAL æ–‡ä»¶", "WAL file"), value: runtime?.wal_file },
-    { label: t("SHM æ–‡ä»¶", "SHM file"), value: runtime?.shm_file }
+    { label: t("数据库文件", "Database file"), value: runtime?.db_file },
+    { label: t("WAL 文件", "WAL file"), value: runtime?.wal_file },
+    { label: t("SHM 文件", "SHM file"), value: runtime?.shm_file }
   ];
   const recommendedServerName = useMemo(() => tlsStatus.server_dns_names.find((name) => name && name !== "localhost") || tlsStatus.server_dns_names[0] || "", [tlsStatus.server_dns_names]);
   const accessPreview = accessBundle?.bundle;
