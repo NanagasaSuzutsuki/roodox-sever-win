@@ -278,18 +278,24 @@ fn trigger_server_backup() -> Result<BackupTriggerResult, String> {
     run_server_admin_json::<BackupTriggerResult>(&cfg_path, &["-trigger-server-backup-json"])
 }
 
+fn deployment_root() -> PathBuf {
+    let cfg_path = config_path();
+    cfg_path
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(project_root)
+}
+
+fn default_handoff_root() -> PathBuf {
+    deployment_root().join("artifacts").join("handoff")
+}
+
 fn default_client_ca_export_path() -> PathBuf {
-    project_root()
-        .join("artifacts")
-        .join("handoff")
-        .join("roodox-ca-cert.pem")
+    default_handoff_root().join("roodox-ca-cert.pem")
 }
 
 fn default_client_access_export_dir() -> PathBuf {
-    project_root()
-        .join("artifacts")
-        .join("handoff")
-        .join("client-access")
+    default_handoff_root().join("client-access")
 }
 
 fn issue_join_bundle_internal(
@@ -346,7 +352,7 @@ fn export_client_ca(destination_path: Option<String>) -> Result<ExportClientCARe
     let export_path = if raw.is_absolute() {
         raw
     } else {
-        project_root().join(raw)
+        deployment_root().join(raw)
     };
     if let Some(parent) = export_path.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("create export dir failed: {e}"))?;
@@ -393,7 +399,7 @@ fn export_client_access_bundle(
     let export_dir = if raw.is_absolute() {
         raw
     } else {
-        project_root().join(raw)
+        deployment_root().join(raw)
     };
     fs::create_dir_all(&export_dir).map_err(|e| format!("create access export dir failed: {e}"))?;
 

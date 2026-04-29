@@ -402,6 +402,28 @@ Build the packaged workbench:
 .\scripts\workbench\build-gui.cmd
 ```
 
+构建完整发布产物（便携包 + GUI MSI + 一体化安装包）：  
+Build the full release set (portable bundle + GUI MSI + all-in-one installer):
+
+```powershell
+.\scripts\release\build-release.ps1 -BuildMsi -BuildInstaller
+```
+
+一体化安装包默认把程序文件放到 `Program Files\Roodox Server`，把可写配置和运行数据放到 `C:\ProgramData\Roodox`。  
+The all-in-one installer places application files under `Program Files\Roodox Server` and writable config/runtime data under `C:\ProgramData\Roodox`.
+
+安装器首次部署会自动：  
+The installer automatically:
+
+- 生成 `roodox.config.json`（如不存在）  
+  Create `roodox.config.json` if it does not exist
+- 把 `runtime.binary_path` 指向安装目录下的 `roodox_server.exe`  
+  Point `runtime.binary_path` at the installed `roodox_server.exe`
+- 为默认占位 `shared_secret` 生成随机值  
+  Replace the placeholder `shared_secret` with a random value
+- 写入 `roodox-workbench.bootstrap.json`  
+  Write `roodox-workbench.bootstrap.json`
+
 ## Testing / 测试
 
 运行完整 Go 测试：  
