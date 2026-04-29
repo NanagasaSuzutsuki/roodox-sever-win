@@ -15,7 +15,9 @@
                                     "title":  "Roodox Workbench",
                                     "width":  1240,
                                     "height":  900,
-                                    "resizable":  true
+                                    "resizable":  true,
+                                    "decorations":  false,
+                                    "transparent":  true
                                 }
                             ],
                 "security":  {

@@ -181,8 +181,11 @@ pub struct JoinBundleView {
     pub server_id: String,
     pub device_group: String,
     pub shared_secret: String,
+    #[serde(default)]
     pub device_id: String,
+    #[serde(default)]
     pub device_name: String,
+    #[serde(default)]
     pub device_role: String,
 }
 
@@ -197,6 +200,43 @@ pub struct ExportClientAccessResult {
     pub export_dir: String,
     pub bundle_path: String,
     pub ca_path: Option<String>,
+    pub connection_code_path: Option<String>,
+    pub importer_path: Option<String>,
+    pub readme_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccessHostCandidate {
+    pub kind: String,
+    pub label: String,
+    pub host: String,
+    pub interface_alias: Option<String>,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccessProviderInfo {
+    pub id: String,
+    pub installed: bool,
+    pub version: Option<String>,
+    pub path: Option<String>,
+    pub host: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccessSetupResult {
+    pub computer_name: String,
+    pub lan_candidates: Vec<AccessHostCandidate>,
+    pub recommended_lan_host: Option<String>,
+    pub providers: Vec<AccessProviderInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectionCodeResult {
+    pub format: String,
+    pub code: String,
+    pub uri: String,
+    pub payload_size: usize,
 }
 
 #[derive(Debug, Serialize)]

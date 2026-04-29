@@ -32,10 +32,13 @@ Roodox is a Windows-first gRPC file service with device control-plane, TLS/auth 
   Windows process and service lifecycle management
 - GUI 侧运维与客户端接入包导出  
   GUI-based operations and client access export
+- 连接码导出与客户端导入器  
+  Self-contained connection-code export and client importer
 
 ## Repository Layout / 目录结构
 
 - `cmd/roodox_server`: 服务端入口 / server binary entrypoint
+- `cmd/roodox_client_import`: 客户端连接码导入器 / client connection-code importer
 - `cmd/roodox_qa`: QA 与回归工具 / QA and regression tool
 - `client/`: Go 客户端辅助库 / Go client helpers
 - `internal/`: 服务端、运行时、数据库、清理、控制面逻辑 / server, runtime, DB, cleanup, and control-plane packages
@@ -337,8 +340,10 @@ Typical operator flow:
    Save access settings.
 3. 刷新 Join Bundle 预览。  
    Refresh the join-bundle preview.
-4. 导出客户端接入包和 CA 根证书。  
-   Export the client access bundle and CA root.
+4. 导出客户端接入包、连接码和 CA 根证书。  
+   Export the client access bundle, connection code, and CA root.
+5. 如需交给终端用户自助导入，可一并分发 `roodox_client_import.exe`。  
+   If you want end users to self-import the handoff, ship `roodox_client_import.exe` together with it.
 
 ## TLS and Certificate Operations / TLS 与证书操作
 

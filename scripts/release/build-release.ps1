@@ -54,6 +54,7 @@ function Write-ReleaseReadme {
         "",
         "Contents:",
         "- roodox_server.exe",
+        "- roodox_client_import.exe",
         "- roodox-workbench.exe",
         "- start-roodox-workbench.cmd",
         "- roodox.config.json",
@@ -113,6 +114,7 @@ function New-InstallerStage {
     param(
         [string]$RepoRoot,
         [string]$ServerExe,
+        [string]$ClientImporterExe,
         [string]$WorkbenchExe,
         [string]$StageDir
     )
@@ -122,6 +124,7 @@ function New-InstallerStage {
     New-Item -ItemType Directory -Force -Path (Join-Path $appDir "scripts"), (Join-Path $appDir "docs") | Out-Null
 
     Copy-Item -LiteralPath $ServerExe -Destination (Join-Path $appDir "roodox_server.exe") -Force
+    Copy-Item -LiteralPath $ClientImporterExe -Destination (Join-Path $appDir "roodox_client_import.exe") -Force
     Copy-Item -LiteralPath $WorkbenchExe -Destination (Join-Path $appDir "roodox-workbench.exe") -Force
     Copy-Item -LiteralPath (Join-Path $RepoRoot "roodox.config.example.json") -Destination (Join-Path $appDir "roodox.config.example.json") -Force
     Copy-Item -LiteralPath (Join-Path $RepoRoot "README.md") -Destination (Join-Path $appDir "README.md") -Force
@@ -322,6 +325,7 @@ function Invoke-AllInOneInstallerBuild {
         [string]$Version,
         [string]$ReleaseRoot,
         [string]$ServerExe,
+        [string]$ClientImporterExe,
         [string]$WorkbenchExe
     )
 
@@ -331,7 +335,7 @@ function Invoke-AllInOneInstallerBuild {
     }
 
     $installerRoot = Join-Path $ReleaseRoot "installer"
-    $stage = New-InstallerStage -RepoRoot $RepoRoot -ServerExe $ServerExe -WorkbenchExe $WorkbenchExe -StageDir (Join-Path $installerRoot "stage")
+    $stage = New-InstallerStage -RepoRoot $RepoRoot -ServerExe $ServerExe -ClientImporterExe $ClientImporterExe -WorkbenchExe $WorkbenchExe -StageDir (Join-Path $installerRoot "stage")
     $setupBaseName = "roodox-server-win-v$Version-setup"
     $issPath = Join-Path $installerRoot "roodox-server-all-in-one.iss"
     Write-InnoSetupScript -Path $issPath -Version $Version -AppSourceDir $stage.AppDir -OutputDir $ReleaseRoot -OutputBaseFileName $setupBaseName
@@ -367,6 +371,7 @@ if ($BuildMsi) {
 
 $layout = Get-RoodoxWorkbenchLayout -ConfigPath (Join-Path $repoRoot "roodox.config.json")
 $serverExe = Join-Path $repoRoot "roodox_server.exe"
+$clientImporterExe = Join-Path $repoRoot "roodox_client_import.exe"
 $releaseRoot = Join-Path $repoRoot "artifacts/release"
 $bundleName = "roodox-server-win-v$resolvedVersion-portable"
 $bundleDir = Join-Path $releaseRoot $bundleName
@@ -377,6 +382,10 @@ New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
 Push-Location $repoRoot
 try {
     & go build -o $serverExe ./cmd/roodox_server
+    if ($LASTEXITCODE -ne 0) {
+        throw "go build failed with exit code $LASTEXITCODE"
+    }
+    & go build -o $clientImporterExe ./cmd/roodox_client_import
     if ($LASTEXITCODE -ne 0) {
         throw "go build failed with exit code $LASTEXITCODE"
     }
@@ -391,6 +400,7 @@ Reset-Directory -Path $bundleDir
 New-Item -ItemType Directory -Force -Path (Join-Path $bundleDir "scripts"), (Join-Path $bundleDir "docs") | Out-Null
 
 Copy-Item -LiteralPath $serverExe -Destination (Join-Path $bundleDir "roodox_server.exe") -Force
+Copy-Item -LiteralPath $clientImporterExe -Destination (Join-Path $bundleDir "roodox_client_import.exe") -Force
 Copy-Item -LiteralPath $layout.ExecutablePath -Destination (Join-Path $bundleDir "roodox-workbench.exe") -Force
 Copy-Item -LiteralPath (Join-Path $repoRoot "roodox.config.example.json") -Destination (Join-Path $bundleDir "roodox.config.example.json") -Force
 Copy-Item -LiteralPath (Join-Path $repoRoot "roodox.config.example.json") -Destination (Join-Path $bundleDir "roodox.config.json") -Force
@@ -413,7 +423,7 @@ $msiPath = $null
 $setupPath = $null
 $setupName = ""
 if ($BuildInstaller) {
-    $installer = Invoke-AllInOneInstallerBuild -RepoRoot $repoRoot -Version $resolvedVersion -ReleaseRoot $releaseRoot -ServerExe $serverExe -WorkbenchExe $layout.ExecutablePath
+    $installer = Invoke-AllInOneInstallerBuild -RepoRoot $repoRoot -Version $resolvedVersion -ReleaseRoot $releaseRoot -ServerExe $serverExe -ClientImporterExe $clientImporterExe -WorkbenchExe $layout.ExecutablePath
     $setupPath = $installer.SetupPath
     $setupName = [System.IO.Path]::GetFileName($setupPath)
 }
@@ -432,6 +442,7 @@ Compress-Archive -Path (Join-Path $bundleDir "*") -DestinationPath $zipPath -For
     MsiPath = $msiPath
     SetupPath = $setupPath
     ServerExe = Join-Path $bundleDir "roodox_server.exe"
+    ClientImporterExe = Join-Path $bundleDir "roodox_client_import.exe"
     WorkbenchExe = Join-Path $bundleDir "roodox-workbench.exe"
     ConfigPath = Join-Path $bundleDir "roodox.config.json"
 }

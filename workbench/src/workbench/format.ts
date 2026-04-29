@@ -1,3 +1,4 @@
+import { safeGetItem } from "./persistence";
 import type { Lang } from "./types";
 
 const zhLocale = "zh-CN";
@@ -8,7 +9,7 @@ const localeFor = (lang: Lang) => (lang === "zh" ? zhLocale : enLocale);
 export const toMultiline = (value: string[]) => value.join("\n");
 
 export const initialLang = (): Lang => {
-  const saved = localStorage.getItem("roodox.workbench.lang");
+  const saved = safeGetItem("roodox.workbench.lang");
   return saved === "zh" || saved === "en" ? saved : "zh";
 };
 

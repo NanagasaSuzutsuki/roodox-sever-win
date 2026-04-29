@@ -163,4 +163,15 @@ export type JoinBundleView = {
   device_role: string;
 };
 export type IssueJoinBundleResult = { bundle_json: string; bundle: JoinBundleView };
-export type ExportClientAccessResult = { export_dir: string; bundle_path: string; ca_path?: string | null };
+export type ExportClientAccessResult = {
+  export_dir: string;
+  bundle_path: string;
+  ca_path?: string | null;
+  connection_code_path?: string | null;
+  importer_path?: string | null;
+  readme_path?: string | null;
+};
+export type AccessHostCandidate = { kind: string; label: string; host: string; interface_alias?: string | null; source: string };
+export type AccessProviderInfo = { id: string; installed: boolean; version?: string | null; path?: string | null; host?: string | null };
+export type AccessSetupResult = { computer_name: string; lan_candidates: AccessHostCandidate[]; recommended_lan_host?: string | null; providers: AccessProviderInfo[] };
+export type ConnectionCodeResult = { format: string; code: string; uri: string; payload_size: number };

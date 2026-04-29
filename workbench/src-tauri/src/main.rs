@@ -3,23 +3,51 @@
 mod config;
 mod models;
 
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine;
 use config::{
     config_path, detect_server_command, ensure_server_binary_current, project_root,
     read_config_file, source_server_command, suppress_command_window, write_config_file,
 };
 use models::*;
 use once_cell::sync::Lazy;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashSet;
 use std::fs;
 use std::io::{BufRead, BufReader};
+use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::thread;
+#[cfg(target_os = "windows")]
+use windows::Win32::Foundation::{LPARAM, WPARAM};
+#[cfg(target_os = "windows")]
+use windows::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
+#[cfg(target_os = "windows")]
+use windows::Win32::UI::WindowsAndMessaging::{SendMessageW, HTCAPTION, WM_NCLBUTTONDOWN};
 
 static CHILD: Lazy<Mutex<Option<Child>>> = Lazy::new(|| Mutex::new(None));
 static LOGS: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(Vec::new()));
 static INSTALLING: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
+
+fn should_prefer_source_admin_command(config_path: &Path) -> bool {
+    let root = project_root();
+    if !(root.join("go.mod").exists() && root.join("cmd").join("roodox_server").exists()) {
+        return false;
+    }
+    let config_dir = config_path.parent().unwrap_or(Path::new("."));
+    let canonical_config_dir = match fs::canonicalize(config_dir) {
+        Ok(value) => value,
+        Err(_) => return false,
+    };
+    let canonical_root = match fs::canonicalize(&root) {
+        Ok(value) => value,
+        Err(_) => return false,
+    };
+    !canonical_config_dir.starts_with(canonical_root)
+}
 
 fn push_log(line: impl Into<String>) {
     if let Ok(mut logs) = LOGS.lock() {
@@ -63,10 +91,429 @@ fn output_text(output: &[u8]) -> String {
     String::from_utf8_lossy(output).trim().to_string()
 }
 
+#[derive(Debug, Deserialize)]
+struct PowerShellNetIpRow {
+    #[serde(rename = "InterfaceAlias")]
+    interface_alias: Option<String>,
+    #[serde(rename = "IPAddress")]
+    ip_address: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ConnectionCodePayload {
+    version: u32,
+    bundle: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ca_pem: Option<String>,
+}
+
+fn resolve_path_from_config(config_path: &Path, raw: &str) -> PathBuf {
+    let candidate = PathBuf::from(raw.trim());
+    if candidate.is_absolute() {
+        candidate
+    } else {
+        config_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(candidate)
+    }
+}
+
+fn default_local_tls_root_cert_path(config_path: &Path, cert_path: &str) -> PathBuf {
+    let resolved_cert_path = resolve_path_from_config(config_path, cert_path);
+    resolved_cert_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join("roodox-ca-cert.pem")
+}
+
+fn load_client_ca_pem(config_path: &Path, cert_path: &str) -> Result<String, String> {
+    let pem_path = default_local_tls_root_cert_path(config_path, cert_path);
+    let pem = fs::read_to_string(&pem_path)
+        .map_err(|e| format!("read client ca failed ({}): {e}", pem_path.display()))?;
+    let trimmed = pem.trim();
+    if trimmed.is_empty() {
+        return Err(format!("client ca is empty: {}", pem_path.display()));
+    }
+    Ok(format!("{trimmed}\n"))
+}
+
+fn build_connection_code_result(
+    bundle_json: &str,
+    ca_pem: Option<&str>,
+) -> Result<ConnectionCodeResult, String> {
+    let bundle_value: Value = serde_json::from_str(bundle_json)
+        .map_err(|e| format!("parse join bundle json failed: {e}"))?;
+    let payload = ConnectionCodePayload {
+        version: 1,
+        bundle: bundle_value,
+        ca_pem: ca_pem
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| format!("{value}\n")),
+    };
+    let compact_payload =
+        serde_json::to_vec(&payload).map_err(|e| format!("encode connection code failed: {e}"))?;
+    let encoded = URL_SAFE_NO_PAD.encode(&compact_payload);
+    Ok(ConnectionCodeResult {
+        format: "roodox:1".to_string(),
+        code: format!("roodox:1:{encoded}"),
+        uri: format!("roodox://connect?v=1&payload={encoded}"),
+        payload_size: compact_payload.len(),
+    })
+}
+
+fn write_client_import_readme(
+    export_dir: &Path,
+    connection_code_path: &Path,
+    importer_path: Option<&Path>,
+) -> Result<PathBuf, String> {
+    let readme_path = export_dir.join("README-client-import.txt");
+    let importer_name = importer_path
+        .and_then(|path| path.file_name())
+        .and_then(|value| value.to_str())
+        .unwrap_or("roodox_client_import.exe");
+    let lines = vec![
+        "Roodox client handoff".to_string(),
+        String::new(),
+        "Included files:".to_string(),
+        "- roodox-client-access.json: join bundle for manual import".to_string(),
+        "- roodox-ca-cert.pem: TLS trust root when TLS is enabled".to_string(),
+        "- roodox-connection-code.txt: self-contained connection code".to_string(),
+        "- roodox_client_import.exe: optional importer helper when bundled".to_string(),
+        String::new(),
+        "Recommended import:".to_string(),
+        format!(
+            "{importer_name} -connection-code-file \"{}\" -output-dir . -probe",
+            connection_code_path.display()
+        ),
+        String::new(),
+        "Manual fallback:".to_string(),
+        "1. Keep roodox-client-access.json available to the client side.".to_string(),
+        "2. If TLS is enabled, keep roodox-ca-cert.pem alongside the client config.".to_string(),
+        "3. Configure the client to use the exported host, port, TLS server name, and shared secret."
+            .to_string(),
+    ];
+    fs::write(&readme_path, lines.join("\r\n"))
+        .map_err(|e| format!("write client import readme failed: {e}"))?;
+    Ok(readme_path)
+}
+
+fn ensure_client_importer_binary() -> Result<Option<PathBuf>, String> {
+    let root = project_root();
+    let binary_path = root.join("roodox_client_import.exe");
+    if binary_path.exists() {
+        return Ok(Some(binary_path));
+    }
+    if !(root.join("go.mod").exists() && root.join("cmd").join("roodox_client_import").exists()) {
+        return Ok(None);
+    }
+
+    let mut cmd = Command::new("go");
+    suppress_command_window(&mut cmd);
+    let output = cmd
+        .arg("build")
+        .arg("-o")
+        .arg(&binary_path)
+        .arg("./cmd/roodox_client_import")
+        .current_dir(&root)
+        .output()
+        .map_err(|e| format!("build client importer failed: {e}"))?;
+    if !output.status.success() {
+        let stderr = output_text(&output.stderr);
+        let stdout = output_text(&output.stdout);
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(if detail.is_empty() {
+            format!("build client importer failed: {}", output.status)
+        } else {
+            format!("build client importer failed: {detail}")
+        });
+    }
+
+    Ok(Some(binary_path))
+}
+
+fn run_hidden_command(program: &str, args: &[&str]) -> Result<std::process::Output, String> {
+    let mut cmd = Command::new(program);
+    suppress_command_window(&mut cmd);
+    for arg in args {
+        cmd.arg(arg);
+    }
+    cmd.output()
+        .map_err(|e| format!("run command {program} failed: {e}"))
+}
+
+fn run_powershell_script(script: &str) -> Result<std::process::Output, String> {
+    run_hidden_command(
+        "powershell",
+        &[
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+        ],
+    )
+}
+
+fn parse_json_rows<T>(text: &str) -> Result<Vec<T>, String>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let value: Value =
+        serde_json::from_str(trimmed).map_err(|e| format!("parse json output failed: {e}"))?;
+    match value {
+        Value::Array(items) => items
+            .into_iter()
+            .map(|item| serde_json::from_value(item).map_err(|e| format!("parse row failed: {e}")))
+            .collect(),
+        Value::Null => Ok(Vec::new()),
+        other => serde_json::from_value(other)
+            .map(|item| vec![item])
+            .map_err(|e| format!("parse row failed: {e}")),
+    }
+}
+
+fn parse_ipv4(ip: &str) -> Option<Ipv4Addr> {
+    ip.trim().parse::<Ipv4Addr>().ok()
+}
+
+fn is_private_lan_ip(ip: &str) -> bool {
+    let Some(addr) = parse_ipv4(ip) else {
+        return false;
+    };
+    let octets = addr.octets();
+    octets[0] == 10
+        || (octets[0] == 172 && (16..=31).contains(&octets[1]))
+        || (octets[0] == 192 && octets[1] == 168)
+}
+
+fn is_tailscale_ip(ip: &str) -> bool {
+    let Some(addr) = parse_ipv4(ip) else {
+        return false;
+    };
+    let octets = addr.octets();
+    octets[0] == 100 && (64..=127).contains(&octets[1])
+}
+
+fn looks_virtual_interface(alias: &str) -> bool {
+    let value = alias.trim().to_lowercase();
+    [
+        "vmware",
+        "hyper-v",
+        "vethernet",
+        "virtualbox",
+        "loopback",
+        "wsl",
+        "docker",
+        "tun",
+        "tap",
+        "tailscale",
+        "easytier",
+        "zerotier",
+        "wireguard",
+        "hamachi",
+        "bluetooth",
+        "teredo",
+        "isatap",
+        "vpn",
+    ]
+    .iter()
+    .any(|needle| value.contains(needle))
+}
+
+fn lan_interface_priority(alias: Option<&str>) -> u8 {
+    let value = alias.unwrap_or("").trim().to_lowercase();
+    if value.is_empty() {
+        return 5;
+    }
+    if [
+        "ethernet",
+        "以太网",
+        "wlan",
+        "wi-fi",
+        "wifi",
+        "wireless",
+    ]
+    .iter()
+    .any(|needle| value.contains(needle))
+    {
+        return 0;
+    }
+    if ["local area", "lan"].iter().any(|needle| value.contains(needle)) {
+        return 1;
+    }
+    if ["usb", "rndis", "mobile", "phone", "hotspot"]
+        .iter()
+        .any(|needle| value.contains(needle))
+    {
+        return 2;
+    }
+    3
+}
+
+fn lan_ip_priority(ip: &str) -> u8 {
+    let Some(addr) = parse_ipv4(ip) else {
+        return 9;
+    };
+    let octets = addr.octets();
+    if octets[0] == 192 && octets[1] == 168 {
+        return 0;
+    }
+    if octets[0] == 10 {
+        return 1;
+    }
+    if octets[0] == 172 && (16..=31).contains(&octets[1]) {
+        return 2;
+    }
+    3
+}
+
+fn collect_ipv4_rows() -> Result<Vec<PowerShellNetIpRow>, String> {
+    let script = "$ProgressPreference='SilentlyContinue'; Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } | Select-Object InterfaceAlias,IPAddress | ConvertTo-Json -Compress";
+    let output = run_powershell_script(script)?;
+    if !output.status.success() {
+        let stderr = output_text(&output.stderr);
+        let stdout = output_text(&output.stdout);
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(if detail.is_empty() {
+            format!("network discovery failed: {}", output.status)
+        } else {
+            detail
+        });
+    }
+
+    parse_json_rows::<PowerShellNetIpRow>(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn easytier_candidate_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    let mut push = |base: Option<std::ffi::OsString>, relative: &str| {
+        if let Some(root) = base.clone() {
+            paths.push(PathBuf::from(root).join(relative));
+        }
+    };
+
+    push(
+        std::env::var_os("LOCALAPPDATA"),
+        r"Programs\easytier-gui\EasyTier GUI.exe",
+    );
+    push(
+        std::env::var_os("PROGRAMFILES"),
+        r"EasyTier GUI\EasyTier GUI.exe",
+    );
+    push(
+        std::env::var_os("PROGRAMFILES"),
+        r"EasyTier\EasyTier GUI.exe",
+    );
+    push(
+        std::env::var_os("PROGRAMFILES(X86)"),
+        r"EasyTier GUI\EasyTier GUI.exe",
+    );
+    push(
+        std::env::var_os("PROGRAMFILES"),
+        r"EasyTier\easytier-core.exe",
+    );
+    paths
+}
+
+fn find_tool_or_paths(names: &[&str], paths: &[PathBuf]) -> ToolInfo {
+    for name in names {
+        let info = find_tool(name);
+        if info.installed {
+            return info;
+        }
+    }
+
+    for path in paths {
+        if path.exists() {
+            return tool_info_from_path(path.to_string_lossy().to_string());
+        }
+    }
+
+    ToolInfo {
+        installed: false,
+        path: None,
+        version: None,
+        error: Some("not found".to_string()),
+    }
+}
+
+fn detect_tailscale_host(rows: &[PowerShellNetIpRow]) -> Option<String> {
+    if let Ok(output) = run_hidden_command("tailscale", &["status", "--json"]) {
+        if output.status.success() {
+            if let Ok(value) = serde_json::from_slice::<Value>(&output.stdout) {
+                if let Some(dns_name) = value
+                    .get("Self")
+                    .and_then(|self_value| self_value.get("DNSName"))
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                {
+                    return Some(dns_name.trim_end_matches('.').to_string());
+                }
+            }
+        }
+    }
+
+    rows.iter()
+        .find(|row| {
+            row.interface_alias
+                .as_deref()
+                .map(|alias| alias.to_lowercase().contains("tailscale"))
+                .unwrap_or(false)
+                || is_tailscale_ip(&row.ip_address)
+        })
+        .map(|row| row.ip_address.clone())
+        .or_else(|| {
+            let output = run_hidden_command("tailscale", &["ip", "-4"]).ok()?;
+            if !output.status.success() {
+                return None;
+            }
+            let host = first_line(&output.stdout);
+            if host.is_empty() {
+                None
+            } else {
+                Some(host)
+            }
+        })
+}
+
+fn detect_easytier_host(rows: &[PowerShellNetIpRow]) -> Option<String> {
+    rows.iter()
+        .find(|row| {
+            row.interface_alias
+                .as_deref()
+                .map(|alias| alias.to_lowercase().contains("easytier"))
+                .unwrap_or(false)
+        })
+        .map(|row| row.ip_address.clone())
+}
+
 fn run_server_admin_command_owned(
     config_path: &Path,
     args: &[String],
 ) -> Result<std::process::Output, String> {
+    if should_prefer_source_admin_command(config_path) {
+        let mut source = source_server_command().ok_or_else(|| {
+            "source admin command is preferred but no source fallback exists".to_string()
+        })?;
+        source
+            .arg("-config")
+            .arg(config_path.to_string_lossy().to_string());
+        for arg in args {
+            source.arg(arg);
+        }
+        return source
+            .output()
+            .map_err(|e| format!("run preferred source admin command failed: {e}"));
+    }
+
     let mut cmd = detect_server_command(config_path)?;
     cmd.arg("-config")
         .arg(config_path.to_string_lossy().to_string());
@@ -281,6 +728,142 @@ fn discover_build_tool(tool: &str) -> ToolInfo {
     find_tool_with_dirs(tool, &recommended_tool_dirs())
 }
 
+fn build_lan_candidates(rows: &[PowerShellNetIpRow]) -> Vec<AccessHostCandidate> {
+    let mut seen = HashSet::new();
+    let mut candidates = rows
+        .iter()
+        .filter(|row| is_private_lan_ip(&row.ip_address))
+        .filter(|row| {
+            row.interface_alias
+                .as_deref()
+                .map(|alias| !looks_virtual_interface(alias))
+                .unwrap_or(true)
+        })
+        .filter(|row| seen.insert(row.ip_address.clone()))
+        .map(|row| {
+            let interface_alias = row.interface_alias.clone();
+            let label = match interface_alias.as_deref() {
+                Some(alias) if !alias.trim().is_empty() => {
+                    format!("{} · {}", row.ip_address, alias)
+                }
+                _ => row.ip_address.clone(),
+            };
+            AccessHostCandidate {
+                kind: "lan".to_string(),
+                label,
+                host: row.ip_address.clone(),
+                interface_alias,
+                source: "recommended-lan".to_string(),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    candidates.sort_by(|left, right| {
+        let left_key = (
+            lan_interface_priority(left.interface_alias.as_deref()),
+            lan_ip_priority(&left.host),
+            left.label.clone(),
+        );
+        let right_key = (
+            lan_interface_priority(right.interface_alias.as_deref()),
+            lan_ip_priority(&right.host),
+            right.label.clone(),
+        );
+        left_key.cmp(&right_key)
+    });
+    for (index, candidate) in candidates.iter_mut().enumerate() {
+        candidate.source = if index == 0 {
+            "recommended-lan".to_string()
+        } else {
+            "auto-detected".to_string()
+        };
+    }
+    candidates
+}
+
+fn tailscale_provider(rows: &[PowerShellNetIpRow]) -> AccessProviderInfo {
+    let tool = find_tool("tailscale");
+    AccessProviderInfo {
+        id: "tailscale".to_string(),
+        installed: tool.installed,
+        version: tool.version,
+        path: tool.path,
+        host: detect_tailscale_host(rows),
+    }
+}
+
+fn easytier_provider(rows: Option<&[PowerShellNetIpRow]>) -> AccessProviderInfo {
+    let tool = find_tool_or_paths(
+        &["easytier-core", "easytier-cli", "easytier-gui"],
+        &easytier_candidate_paths(),
+    );
+    AccessProviderInfo {
+        id: "easytier".to_string(),
+        installed: tool.installed,
+        version: tool.version,
+        path: tool.path,
+        host: rows
+            .and_then(detect_easytier_host)
+            .or_else(|| collect_ipv4_rows().ok().and_then(|items| detect_easytier_host(&items))),
+    }
+}
+
+fn launch_easytier_installer() -> Result<String, String> {
+    let script = "$ProgressPreference='SilentlyContinue'; $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/EasyTier/EasyTier/releases/latest' -Headers @{ 'User-Agent'='roodox-workbench' }; $asset = $release.assets | Where-Object { $_.name -match 'easytier-gui_.*_x64-setup\\.exe$' } | Select-Object -First 1; if ($null -eq $asset) { throw 'EasyTier x64 installer not found in latest release'; }; $target = Join-Path $env:TEMP $asset.name; Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $target; Start-Process -FilePath $target; Write-Output $target";
+    let output = run_powershell_script(script)?;
+    if !output.status.success() {
+        let stderr = output_text(&output.stderr);
+        let stdout = output_text(&output.stdout);
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(if detail.is_empty() {
+            format!("launch EasyTier installer failed: {}", output.status)
+        } else {
+            detail
+        });
+    }
+
+    let path = first_line(&output.stdout);
+    if path.is_empty() {
+        Ok("EasyTier installer launched".to_string())
+    } else {
+        Ok(format!("EasyTier installer launched: {path}"))
+    }
+}
+
+#[tauri::command]
+fn discover_access_setup() -> Result<AccessSetupResult, String> {
+    let rows = collect_ipv4_rows().unwrap_or_default();
+    let lan_candidates = build_lan_candidates(&rows);
+    let providers = vec![tailscale_provider(&rows), easytier_provider(Some(&rows))];
+
+    Ok(AccessSetupResult {
+        computer_name: std::env::var("COMPUTERNAME").unwrap_or_default(),
+        recommended_lan_host: lan_candidates.first().map(|item| item.host.clone()),
+        lan_candidates,
+        providers,
+    })
+}
+
+#[tauri::command]
+fn install_access_provider(provider: String) -> Result<String, String> {
+    match provider.trim().to_lowercase().as_str() {
+        "tailscale" => {
+            if find_tool("tailscale").installed {
+                return Ok("Tailscale already installed".to_string());
+            }
+            run_winget_install("Tailscale.Tailscale")?;
+            Ok("Tailscale installed".to_string())
+        }
+        "easytier" => {
+            if easytier_provider(None).installed {
+                return Ok("EasyTier already installed".to_string());
+            }
+            launch_easytier_installer()
+        }
+        other => Err(format!("unsupported access provider: {other}")),
+    }
+}
+
 #[tauri::command]
 fn load_config() -> Result<AppConfig, String> {
     read_config_file()
@@ -442,11 +1025,27 @@ fn issue_join_bundle(request: Option<JoinBundleRequest>) -> Result<IssueJoinBund
 }
 
 #[tauri::command]
+fn generate_connection_code(
+    request: Option<JoinBundleRequest>,
+) -> Result<ConnectionCodeResult, String> {
+    let cfg_path = config_path();
+    let cfg = read_config_file()?;
+    let bundle = issue_join_bundle_internal(&cfg_path, request.unwrap_or_default())?;
+    let ca_pem = if bundle.bundle.use_tls || cfg.tls_enabled || cfg.bundle_use_tls {
+        Some(load_client_ca_pem(&cfg_path, &cfg.tls_cert_path)?)
+    } else {
+        None
+    };
+    build_connection_code_result(&bundle.bundle_json, ca_pem.as_deref())
+}
+
+#[tauri::command]
 fn export_client_access_bundle(
     request: Option<JoinBundleRequest>,
     destination_dir: Option<String>,
 ) -> Result<ExportClientAccessResult, String> {
     let cfg_path = config_path();
+    let cfg = read_config_file()?;
     let bundle = issue_join_bundle_internal(&cfg_path, request.unwrap_or_default())?;
     let raw = destination_dir
         .as_deref()
@@ -465,32 +1064,53 @@ fn export_client_access_bundle(
     fs::write(&bundle_path, &bundle.bundle_json)
         .map_err(|e| format!("write join bundle failed: {e}"))?;
 
-    let ca_path = if bundle.bundle.use_tls {
+    let ca_pem = if bundle.bundle.use_tls || cfg.tls_enabled || cfg.bundle_use_tls {
+        Some(load_client_ca_pem(&cfg_path, &cfg.tls_cert_path)?)
+    } else {
+        None
+    };
+    let ca_path = if let Some(pem) = ca_pem.as_deref() {
         let target = export_dir.join("roodox-ca-cert.pem");
-        let args = vec![
-            "-export-client-ca".to_string(),
-            target.to_string_lossy().to_string(),
-        ];
-        let output = run_server_admin_command_owned(&cfg_path, &args)?;
-        if !output.status.success() {
-            let stderr = output_text(&output.stderr);
-            let stdout = output_text(&output.stdout);
-            let detail = if !stderr.is_empty() { stderr } else { stdout };
-            return Err(if detail.is_empty() {
-                format!("export client ca failed: {}", output.status)
-            } else {
-                detail
-            });
-        }
+        fs::write(&target, pem).map_err(|e| format!("write client ca failed: {e}"))?;
         Some(target.to_string_lossy().to_string())
     } else {
         None
     };
 
+    let connection_code = build_connection_code_result(&bundle.bundle_json, ca_pem.as_deref())?;
+    let connection_code_path = export_dir.join("roodox-connection-code.txt");
+    fs::write(
+        &connection_code_path,
+        format!("{}\r\n", connection_code.code),
+    )
+    .map_err(|e| format!("write connection code failed: {e}"))?;
+
+    let importer_path = match ensure_client_importer_binary() {
+        Ok(Some(source_path)) => {
+            let target = export_dir.join("roodox_client_import.exe");
+            fs::copy(&source_path, &target).map_err(|e| {
+                format!(
+                    "copy client importer failed ({} -> {}): {e}",
+                    source_path.display(),
+                    target.display()
+                )
+            })?;
+            Some(target)
+        }
+        Ok(None) => None,
+        Err(_) => None,
+    };
+
+    let readme_path =
+        write_client_import_readme(&export_dir, &connection_code_path, importer_path.as_deref())?;
+
     Ok(ExportClientAccessResult {
         export_dir: export_dir.to_string_lossy().to_string(),
         bundle_path: bundle_path.to_string_lossy().to_string(),
         ca_path,
+        connection_code_path: Some(connection_code_path.to_string_lossy().to_string()),
+        importer_path: importer_path.map(|path| path.to_string_lossy().to_string()),
+        readme_path: Some(readme_path.to_string_lossy().to_string()),
     })
 }
 
@@ -731,6 +1351,53 @@ fn install_missing_tools() -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn window_start_drag(window: tauri::Window) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+        unsafe {
+            ReleaseCapture().map_err(|e| e.to_string())?;
+            SendMessageW(
+                hwnd,
+                WM_NCLBUTTONDOWN,
+                Some(WPARAM(HTCAPTION as usize)),
+                Some(LPARAM(0)),
+            );
+        }
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        window.start_dragging().map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
+fn window_minimize(window: tauri::Window) -> Result<(), String> {
+    window.minimize().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn window_toggle_maximize(window: tauri::Window) -> Result<(), String> {
+    if window.is_maximized().map_err(|e| e.to_string())? {
+        window.unmaximize().map_err(|e| e.to_string())
+    } else {
+        window.maximize().map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
+fn window_is_maximized(window: tauri::Window) -> Result<bool, String> {
+    window.is_maximized().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn window_close(window: tauri::Window) -> Result<(), String> {
+    window.close().map_err(|e| e.to_string())
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
@@ -745,13 +1412,21 @@ fn main() {
             load_tls_status,
             trigger_server_backup,
             export_client_ca,
+            discover_access_setup,
+            install_access_provider,
             issue_join_bundle,
+            generate_connection_code,
             export_client_access_bundle,
             start_server,
             stop_server,
             server_status,
             check_environment,
-            install_missing_tools
+            install_missing_tools,
+            window_start_drag,
+            window_minimize,
+            window_toggle_maximize,
+            window_is_maximized,
+            window_close
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

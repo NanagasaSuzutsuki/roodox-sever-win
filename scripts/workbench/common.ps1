@@ -5,6 +5,19 @@ function Get-RoodoxWorkbenchRepoRoot {
     return Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 }
 
+function Get-RoodoxInstalledConfigPath {
+    $programData = [Environment]::GetFolderPath("CommonApplicationData")
+    if ([string]::IsNullOrWhiteSpace($programData)) {
+        return $null
+    }
+
+    $candidate = Join-Path (Join-Path $programData "Roodox") "roodox.config.json"
+    if (Test-Path -LiteralPath $candidate) {
+        return [System.IO.Path]::GetFullPath($candidate)
+    }
+    return $null
+}
+
 function Resolve-RoodoxWorkbenchConfigPath {
     param(
         [string]$ConfigPath,
@@ -12,6 +25,10 @@ function Resolve-RoodoxWorkbenchConfigPath {
     )
 
     if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
+        $installedConfig = Get-RoodoxInstalledConfigPath
+        if (-not [string]::IsNullOrWhiteSpace($installedConfig)) {
+            return $installedConfig
+        }
         return Join-Path $RepoRoot "roodox.config.json"
     }
     if ([System.IO.Path]::IsPathRooted($ConfigPath)) {
@@ -89,7 +106,8 @@ function Write-RoodoxWorkbenchBootstrap {
         project_root = $Layout.RepoRoot
         config_path  = $Layout.ConfigPath
     }
-    $payload | ConvertTo-Json | Set-Content -LiteralPath $DestinationPath -Encoding utf8
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($DestinationPath, ($payload | ConvertTo-Json), $utf8NoBom)
 }
 
 function Get-RoodoxWorkbenchLatestMsiPath {

@@ -656,9 +656,6 @@ func writeJSON(value any) error {
 }
 
 func defaultLocalTLSServerName(cfg appconfig.Config, dialAddr string) string {
-	if v := strings.TrimSpace(cfg.ControlPlane.JoinBundle.ServiceDiscovery.TLSServerName); v != "" {
-		return v
-	}
 	host, _, err := net.SplitHostPort(dialAddr)
 	if err == nil {
 		host = strings.Trim(host, "[]")

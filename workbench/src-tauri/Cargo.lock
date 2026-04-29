@@ -3080,12 +3080,14 @@ dependencies = [
 name = "roodox-workbench"
 version = "0.1.6"
 dependencies = [
+ "base64 0.22.1",
  "once_cell",
  "rfd",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
+ "windows",
 ]
 
 [[package]]

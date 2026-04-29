@@ -49,6 +49,33 @@ fn config_path_from_env() -> Option<PathBuf> {
         })
 }
 
+#[cfg(target_os = "windows")]
+fn installed_config_path() -> Option<PathBuf> {
+    let program_data = std::env::var("ProgramData").ok()?;
+    let trimmed = program_data.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(
+        PathBuf::from(trimmed)
+            .join("Roodox")
+            .join("roodox.config.json"),
+    )
+}
+
+#[cfg(not(target_os = "windows"))]
+fn installed_config_path() -> Option<PathBuf> {
+    None
+}
+
+fn existing_file_path(path: PathBuf) -> Option<PathBuf> {
+    if path.is_file() {
+        Some(path)
+    } else {
+        None
+    }
+}
+
 fn bootstrap_path() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
@@ -77,7 +104,7 @@ fn read_bootstrap() -> Option<BootstrapConfig> {
         return None;
     }
     let text = fs::read_to_string(path).ok()?;
-    serde_json::from_str(&text).ok()
+    serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()
 }
 
 fn config_path_from_bootstrap() -> Option<PathBuf> {
@@ -118,11 +145,26 @@ fn candidate_search_roots() -> Vec<PathBuf> {
     candidates
 }
 
+fn path_is_within_root(path: &Path, root: &Path) -> bool {
+    let canonical_path = match fs::canonicalize(path) {
+        Ok(value) => value,
+        Err(_) => return false,
+    };
+    let canonical_root = match fs::canonicalize(root) {
+        Ok(value) => value,
+        Err(_) => return false,
+    };
+    canonical_path.starts_with(canonical_root)
+}
+
 fn discover_config_path() -> Option<PathBuf> {
-    if let Some(path) = config_path_from_env() {
+    if let Some(path) = config_path_from_env().and_then(existing_file_path) {
         return Some(path);
     }
-    if let Some(path) = config_path_from_bootstrap() {
+    if let Some(path) = config_path_from_bootstrap().and_then(existing_file_path) {
+        return Some(path);
+    }
+    if let Some(path) = installed_config_path().and_then(existing_file_path) {
         return Some(path);
     }
 
@@ -292,8 +334,10 @@ fn normalize_config(mut cfg: AppConfig) -> AppConfig {
 }
 
 fn read_config_value(path: &Path) -> Result<Value, String> {
-    let text = fs::read_to_string(path).map_err(|e| format!("read config failed: {e}"))?;
-    serde_json::from_str::<Value>(&text).map_err(|e| format!("parse config failed: {e}"))
+    let text = fs::read_to_string(path)
+        .map_err(|e| format!("read config failed ({}): {e}", path.display()))?;
+    serde_json::from_str::<Value>(text.trim_start_matches('\u{feff}'))
+        .map_err(|e| format!("parse config failed ({}): {e}", path.display()))
 }
 
 fn read_string(value: &Value, key: &str, default: &str) -> String {
@@ -632,6 +676,10 @@ pub fn ensure_server_binary_current(config_path: &Path) -> Result<Option<PathBuf
     };
 
     let root = project_root();
+    let config_dir = config_path.parent().unwrap_or(Path::new("."));
+    if !path_is_within_root(config_dir, &root) {
+        return Ok(Some(binary_path));
+    }
     if latest_server_source_timestamp(&root).is_none() {
         return Ok(Some(binary_path));
     }
