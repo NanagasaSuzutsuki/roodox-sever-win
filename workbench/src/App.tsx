@@ -2,6 +2,12 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 import {
+  detectOverlayPreset,
+  parseOverlayJoinConfig,
+  setOverlayStringField,
+  setOverlayStringListField
+} from "./workbench/access";
+import {
   defaultClientAccessExportDir,
   defaultClientCAExportPath,
   defaultConfig,
@@ -18,8 +24,7 @@ import {
   formatNumber,
   formatTime,
   initialLang,
-  isMountedState,
-  toMultiline
+  isMountedState
 } from "./workbench/format";
 import type {
   AppConfig,
@@ -42,8 +47,6 @@ export default function App() {
   const [lang, setLang] = useState<Lang>(initialLang);
   const [view, setView] = useState<ViewKey>("dashboard");
   const [config, setConfig] = useState<AppConfig>(defaultConfig);
-  const [toolDirsText, setToolDirsText] = useState("");
-  const [requiredToolsText, setRequiredToolsText] = useState("");
   const [status, setStatus] = useState<ServerStatus>({ running: false });
   const [snapshot, setSnapshot] = useState<WorkbenchSnapshot>(emptySnapshot);
   const [observability, setObservability] = useState<WorkbenchObservabilitySnapshot>(emptyObservability);
@@ -60,6 +63,7 @@ export default function App() {
   const [joinRequest, setJoinRequest] = useState<JoinBundleRequest>(defaultJoinRequest);
   const [accessBundle, setAccessBundle] = useState<IssueJoinBundleResult | null>(null);
   const [showAccessSecret, setShowAccessSecret] = useState(false);
+  const [showAdvancedOverlay, setShowAdvancedOverlay] = useState(false);
   const deferredSearch = useDeferredValue(deviceSearch);
   const t = (zh: string, en: string) => (lang === "zh" ? zh : en);
   const unknown = t("未知", "Unknown");
@@ -118,38 +122,73 @@ export default function App() {
     const keyword = logFilter.trim().toLowerCase();
     return keyword ? logs.filter((line) => line.toLowerCase().includes(keyword)) : logs;
   }, [logFilter, logs]);
-  const files = [
-    { label: t("数据库文件", "Database file"), value: runtime?.db_file },
-    { label: t("WAL 文件", "WAL file"), value: runtime?.wal_file },
-    { label: t("SHM 文件", "SHM file"), value: runtime?.shm_file }
-  ];
   const recommendedServerName = useMemo(() => tlsStatus.server_dns_names.find((name) => name && name !== "localhost") || tlsStatus.server_dns_names[0] || "", [tlsStatus.server_dns_names]);
   const accessPreview = accessBundle?.bundle;
+  const overlayPreset = useMemo(() => detectOverlayPreset(config.bundle_overlay_provider), [config.bundle_overlay_provider]);
+  const overlayConfigState = useMemo(() => parseOverlayJoinConfig(config.bundle_overlay_join_config_json), [config.bundle_overlay_join_config_json]);
+  const overlayConfig = overlayConfigState.value;
+  const overlayConfigError = overlayConfigState.error;
+  const readOverlayString = (key: string) => typeof overlayConfig[key] === "string" ? String(overlayConfig[key]) : "";
+  const readOverlayList = (key: string) => Array.isArray(overlayConfig[key]) ? overlayConfig[key].filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0) : [];
+  const tailscaleAuthKey = readOverlayString("authKey");
+  const tailscaleTailnet = readOverlayString("tailnet");
+  const tailscaleHostname = readOverlayString("hostname");
+  const tailscaleControlUrl = readOverlayString("controlUrl");
+  const easytierNetworkName = readOverlayString("networkName");
+  const easytierNetworkSecret = readOverlayString("networkSecret");
+  const easytierPeerTargetsText = readOverlayList("peerTargets").join("\n");
   const effectiveServiceHost = accessPreview?.service_host || config.bundle_service_host || unknown;
   const effectiveServicePort = accessPreview?.service_port || config.bundle_service_port;
   const effectiveTLS = accessPreview?.use_tls ?? config.bundle_use_tls;
   const effectiveServerName = accessPreview?.tls_server_name || config.bundle_tls_server_name || recommendedServerName || none;
   const effectiveDeviceGroup = accessPreview?.device_group || joinRequest.device_group.trim() || config.bundle_default_device_group || none;
   const effectiveOverlayProvider = accessPreview?.overlay_provider || config.bundle_overlay_provider || none;
+  const accessHostHint = useMemo(() => {
+    switch (overlayPreset) {
+      case "tailscale":
+        return t("这里填 Tailscale IP 或 MagicDNS 名。", "Use the Tailscale IP or MagicDNS name here.");
+      case "easytier":
+        return t("这里填 EasyTier overlay 地址或名称。", "Use the EasyTier overlay address or name here.");
+      case "direct":
+        return t("这里填客户端直接访问的域名、IP 或反向代理地址。", "Use the public, LAN, or reverse-proxy address that clients can reach directly.");
+      case "custom":
+        return t("这里填客户端最终要连接的地址。", "Use the final address that the client should connect to.");
+      default:
+        return t("先选接入方式，再填写客户端可达地址。", "Choose an access mode first, then fill the client-facing address.");
+    }
+  }, [overlayPreset, t]);
   const accessWarnings = useMemo(() => {
     const warnings: string[] = [];
     if (!config.bundle_overlay_provider.trim()) warnings.push(t("客户端接入的 Overlay Provider 还没配置，Join Bundle 现在发不出去。", "Overlay provider is not configured yet, so the join bundle cannot be issued."));
     if (!config.bundle_service_host.trim()) warnings.push(t("客户端接入地址 host 还是空的，需要填一个客户端真实可达的地址。", "The client-facing service host is empty. Set a host that clients can actually reach."));
     if (config.bundle_use_tls && !config.bundle_tls_server_name.trim() && !recommendedServerName) warnings.push(t("TLS 已开启，但还没有 tls_server_name，可先填证书 DNS 名称。", "TLS is enabled but tls_server_name is missing. Fill in a DNS name from the certificate."));
     if (config.auth_enabled && !config.shared_secret.trim()) warnings.push(t("共享密钥认证已开启，但 shared_secret 为空。", "Shared-secret auth is enabled but shared_secret is empty."));
+    if (overlayConfigError) warnings.push(`${t("Overlay JSON 无法解析", "Overlay JSON cannot be parsed")}: ${overlayConfigError}`);
     return warnings;
-  }, [config.auth_enabled, config.bundle_overlay_provider, config.bundle_service_host, config.bundle_tls_server_name, config.bundle_use_tls, config.shared_secret, recommendedServerName, t]);
+  }, [config.auth_enabled, config.bundle_overlay_provider, config.bundle_service_host, config.bundle_tls_server_name, config.bundle_use_tls, config.shared_secret, overlayConfigError, recommendedServerName, t]);
+  const buildToolsRequired = config.remote_build_enabled;
+  const missingTools = useMemo(() => Object.entries(env?.tools ?? {}).filter(([, tool]) => !tool.installed), [env]);
+  const hasMissingTools = missingTools.length > 0;
+  const toolIssuesActive = buildToolsRequired && hasMissingTools;
+  const installToolsDisabled = !env?.winget_installed || !hasMissingTools || !!status.installing;
+  const installToolsLabel = status.installing
+    ? t("安装中...", "Installing...")
+    : hasMissingTools
+      ? t("一键安装工具", "Install tools")
+      : t("工具已就绪", "Tools ready");
+  const envWarningText = useMemo(() => {
+    if (!buildToolsRequired || missingTools.length === 0) return "";
+    const names = missingTools.map(([name]) => name).join(", ");
+    return t(`缺少构建工具：${names}。直接点“一键安装工具”即可。`, `Missing build tools: ${names}. Use "Install tools" directly.`);
+  }, [buildToolsRequired, missingTools, t]);
 
-  const loadConfig = async () => {
+  const loadConfig = async (): Promise<AppConfig> => {
     const cfg = await invoke<AppConfig>("load_config");
     setConfig(cfg);
-    setToolDirsText(toMultiline(cfg.build_tool_dirs ?? []));
-    setRequiredToolsText((cfg.required_build_tools ?? []).join(","));
+    return cfg;
   };
   const buildConfigForSave = (): AppConfig => ({
     ...config,
-    build_tool_dirs: toolDirsText.split(/\r?\n/).map((s) => s.trim()).filter(Boolean),
-    required_build_tools: requiredToolsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean),
     data_root: config.data_root.trim(),
     root_dir: config.root_dir.trim(),
     addr: config.addr.trim(),
@@ -167,8 +206,6 @@ export default function App() {
   const persistConfig = async (next: AppConfig, okText: string) => {
     const saved = await invoke<AppConfig>("save_config", { cfg: next });
     setConfig(saved);
-    setToolDirsText(toMultiline(saved.build_tool_dirs ?? []));
-    setRequiredToolsText((saved.required_build_tools ?? []).join(","));
     setMessage(okText);
   };
   const refreshStatus = async () => setStatus(await invoke<ServerStatus>("server_status"));
@@ -181,6 +218,38 @@ export default function App() {
     await refreshSnapshot();
     await refreshObservability();
     await refreshTLS();
+  };
+  const chooseDirectory = async (initialPath: string, apply: (path: string) => void) => {
+    const selected = await invoke<string | null>("pick_directory", { initialPath });
+    if (selected) apply(selected);
+  };
+  const chooseFile = async (initialPath: string, apply: (path: string) => void) => {
+    const selected = await invoke<string | null>("pick_file", { initialPath });
+    if (selected) apply(selected);
+  };
+  const chooseSaveFilePath = async (initialPath: string, apply: (path: string) => void) => {
+    const selected = await invoke<string | null>("save_file_path", { initialPath });
+    if (selected) apply(selected);
+  };
+  const applyOverlayPreset = (preset: "direct" | "tailscale" | "easytier" | "custom") => {
+    setConfig((value) => ({
+      ...value,
+      bundle_overlay_provider: preset === "custom"
+        ? (detectOverlayPreset(value.bundle_overlay_provider) === "custom" ? value.bundle_overlay_provider : "custom")
+        : preset
+    }));
+  };
+  const updateOverlayField = (key: string, value: string) => {
+    setConfig((current) => ({
+      ...current,
+      bundle_overlay_join_config_json: setOverlayStringField(current.bundle_overlay_join_config_json, key, value)
+    }));
+  };
+  const updateOverlayListField = (key: string, value: string) => {
+    setConfig((current) => ({
+      ...current,
+      bundle_overlay_join_config_json: setOverlayStringListField(current.bundle_overlay_join_config_json, key, value)
+    }));
   };
   const safeRun = async (fn: () => Promise<unknown>) => {
     try {
@@ -196,10 +265,13 @@ export default function App() {
 
   useEffect(() => {
     void safeRun(async () => {
-      await loadConfig();
+      const cfg = await loadConfig();
       const envResult = await invoke<EnvCheck>("check_environment");
       setEnv(envResult);
-      if ((envResult.recommended_tool_dirs?.length ?? 0) > 0 && !toolDirsText.trim()) setToolDirsText(envResult.recommended_tool_dirs.join("\n"));
+      const missing = Object.entries(envResult.tools ?? {}).filter(([, tool]) => !tool.installed).map(([name]) => name);
+      if (cfg.remote_build_enabled && missing.length > 0) {
+        setMessage(t(`检测到缺少工具：${missing.join(", ")}。可在设置页直接一键安装。`, `Missing tools detected: ${missing.join(", ")}. Open Settings to install them.`));
+      }
       await refreshStatus();
       await refreshSnapshot();
       await refreshObservability();
@@ -240,7 +312,7 @@ export default function App() {
           <span>{runtime?.health_state || unknown}</span>
         </div>
         <nav className="main-nav">
-          {[["dashboard", t("工作台", "Workbench")], ["devices", t("设备", "Devices")], ["operations", t("运维", "Operations")], ["access", t("接入", "Client access")], ["logs", t("日志", "Logs")], ["settings", t("设置", "Settings")], ["security", t("安全", "Security")]].map(([key, label]) => (
+          {[["dashboard", t("工作台", "Workbench")], ["devices", t("设备", "Devices")], ["operations", t("运维", "Operations")], ["access", t("接入", "Client access")], ["logs", t("日志", "Logs")], ["settings", t("设置", "Settings")]].map(([key, label]) => (
             <button key={key} className={`nav-link ${view === key ? "active" : ""}`} onClick={() => setView(key as ViewKey)}>{label}</button>
           ))}
         </nav>
@@ -267,12 +339,37 @@ export default function App() {
                 </div>
               </div>
               <div className={`status-banner ${status.running ? "running" : "stopped"}`}>{statusText}</div>
+              {toolIssuesActive && envWarningText ? <div className="inline-warning">{envWarningText}</div> : null}
               <div className="action-row">
                 <button className="primary" onClick={() => void safeRun(async () => { await invoke("start_server"); await refreshStatus(); await refreshSnapshot(); setMessage(t("服务已启动", "Server started")); })}>{t("启动服务", "Start server")}</button>
                 <button className="ghost" onClick={() => void safeRun(async () => { await invoke("stop_server"); await refreshStatus(); await refreshSnapshot(); setMessage(t("已请求停止服务", "Stop requested")); })}>{t("停止服务", "Stop server")}</button>
                 <button className="secondary" onClick={() => void safeRun(async () => { await refreshStatus(); await refreshSnapshot(); })}>{t("刷新", "Refresh")}</button>
                 <button className="secondary" onClick={() => setView("operations")}>{t("打开运维页", "Open operations")}</button>
+                {toolIssuesActive ? <button className="secondary" onClick={() => setView("settings")}>{t("处理缺失工具", "Fix missing tools")}</button> : null}
               </div>
+              <section className="quick-security">
+                <div className="panel-head compact">
+                  <div>
+                    <p className="eyebrow">{t("安全", "Security")}</p>
+                    <h2>{t("连接密钥", "Connection secret")}</h2>
+                    <p className="form-note">{t("客户端接入包会使用这里的共享密钥。安全设置不再单独放一页。", "The client access bundle uses this shared secret. Security settings now live here on the home page.")}</p>
+                  </div>
+                </div>
+                <div className="quick-security-grid">
+                  <label className="check-row">
+                    <input type="checkbox" checked={config.auth_enabled} onChange={(e) => setConfig((value) => ({ ...value, auth_enabled: e.target.checked }))} />
+                    <span>{t("启用共享密钥认证", "Enable shared-secret auth")}</span>
+                  </label>
+                  <div>
+                    <label>{t("共享密钥", "Shared secret")}</label>
+                    <input type={showAccessSecret ? "text" : "password"} value={config.shared_secret} onChange={(e) => setConfig((value) => ({ ...value, shared_secret: e.target.value }))} />
+                  </div>
+                  <div className="action-row compact-actions">
+                    <button className="secondary" onClick={() => setShowAccessSecret((value) => !value)}>{showAccessSecret ? t("隐藏密钥", "Hide secret") : t("显示密钥", "Show secret")}</button>
+                    <button className="primary" onClick={() => void safeRun(async () => await persistConfig(buildConfigForSave(), t("安全设置已保存", "Security settings saved")))}>{t("保存密钥", "Save secret")}</button>
+                  </div>
+                </div>
+              </section>
             </section>
             <section className="metric-grid">
               <article className="metric-card"><span>{t("设备总数", "Total devices")}</span><strong>{deviceStats.total}</strong></article>
@@ -288,7 +385,7 @@ export default function App() {
                   <div><dt>{t("监听地址", "Listen address")}</dt><dd>{runtime?.listen_addr || status.addr || unknown}</dd></div>
                   <div><dt>{t("共享根目录", "Share root")}</dt><dd>{runtime?.root_dir || config.root_dir || unknown}</dd></div>
                   <div><dt>{t("数据目录", "Data root")}</dt><dd>{config.data_root || none}</dd></div>
-                  <div><dt>{t("数据库", "Database")}</dt><dd>{runtime?.db_path || unknown}</dd></div>
+                  <div><dt>{t("服务 ID", "Server ID")}</dt><dd>{runtime?.server_id || unknown}</dd></div>
                   <div><dt>TLS</dt><dd>{(runtime?.tls_enabled ?? config.tls_enabled) ? yes : no}</dd></div>
                   <div><dt>{t("认证", "Auth")}</dt><dd>{(runtime?.auth_enabled ?? config.auth_enabled) ? yes : no}</dd></div>
                   <div><dt>{t("健康状态", "Health")}</dt><dd>{runtime?.health_state || unknown}</dd></div>
@@ -363,46 +460,33 @@ export default function App() {
         {view === "operations" ? (
           <section className="panel">
             <div className="panel-head">
-              <div><p className="eyebrow">{t("运维", "Operations")}</p><h1>{t("运维收口", "Operations")}</h1><p className="panel-subtitle">{t("把运行态、备份、TLS 与可观测性收进同一个工作台。", "Keep runtime, backup, TLS, and observability in one operator surface.")}</p></div>
+              <div><p className="eyebrow">{t("运维", "Operations")}</p><h1>{t("运维", "Operations")}</h1><p className="panel-subtitle">{t("这里只保留状态、备份、TLS 和导出入口，不再暴露过多底层文件细节。", "This page now focuses on status, backup, TLS, and export actions without exposing low-level file details.")}</p></div>
               <div className="action-row compact-actions">
                 <button className="secondary" onClick={() => void safeRun(refreshOps)}>{t("刷新运维状态", "Refresh operations")}</button>
-                <button className="primary" onClick={() => void safeRun(async () => { const result = await invoke<BackupTriggerResult>("trigger_server_backup"); await refreshOps(); setMessage(`${t("手动备份已触发", "Manual backup triggered")}: ${formatTime(result.created_at_unix, lang, never)} · ${result.path}`); })}>{t("立即备份", "Trigger backup")}</button>
+                <button className="primary" onClick={() => void safeRun(async () => { const result = await invoke<BackupTriggerResult>("trigger_server_backup"); await refreshOps(); setMessage(`${t("手动备份已触发", "Manual backup triggered")}: ${formatTime(result.created_at_unix, lang, never)}`); })}>{t("立即备份", "Trigger backup")}</button>
               </div>
             </div>
             <div className="ops-grid">
               <article className="subpanel">
-                <div className="panel-head compact"><div><h2>{t("运行与备份", "Runtime and backup")}</h2></div></div>
+                <div className="panel-head compact"><div><h2>{t("运行与备份", "Runtime and backup")}</h2><p className="form-note">{t("给管理员看结果，不给普通用户看数据库与 WAL 路径。", "Show operator-facing results without exposing database and WAL paths.")}</p></div></div>
                 {snapshot.query_error ? <div className="inline-warning">{t("当前无法读取运行态", "Unable to read the runtime snapshot")} · {snapshot.query_error}</div> : null}
                 <dl className="detail-grid">
-                  <div><dt>{t("Checkpoint 模式", "Checkpoint mode")}</dt><dd>{runtime?.checkpoint.mode || none}</dd></div>
-                  <div><dt>{t("最近 Checkpoint", "Last checkpoint")}</dt><dd>{formatTime(runtime?.checkpoint.last_checkpoint_at_unix, lang, never)}</dd></div>
-                  <div><dt>{t("忙读者", "Busy readers")}</dt><dd>{formatNumber(runtime?.checkpoint.busy_readers, lang, none)}</dd></div>
-                  <div><dt>{t("日志帧", "Log frames")}</dt><dd>{formatNumber(runtime?.checkpoint.log_frames, lang, none)}</dd></div>
-                  <div><dt>{t("已落盘帧", "Checkpointed frames")}</dt><dd>{formatNumber(runtime?.checkpoint.checkpointed_frames, lang, none)}</dd></div>
+                  <div><dt>{t("服务健康", "Service health")}</dt><dd>{runtime?.health_state || unknown}</dd></div>
+                  <div><dt>{t("健康说明", "Health message")}</dt><dd>{runtime?.health_message || none}</dd></div>
                   <div><dt>{t("最近备份", "Last backup")}</dt><dd>{formatTime(runtime?.backup.last_backup_at_unix, lang, never)}</dd></div>
-                  <div><dt>{t("备份目录", "Backup dir")}</dt><dd>{runtime?.backup.dir || none}</dd></div>
                   <div><dt>{t("备份间隔", "Backup interval")}</dt><dd>{formatInterval(runtime?.backup.interval_seconds, lang, none)}</dd></div>
                   <div><dt>{t("保留份数", "Keep latest")}</dt><dd>{formatNumber(runtime?.backup.keep_latest, lang, none)}</dd></div>
-                  <div className="wide"><dt>{t("备份文件", "Backup file")}</dt><dd>{runtime?.backup.last_backup_path || none}</dd></div>
+                  <div><dt>{t("Checkpoint 模式", "Checkpoint mode")}</dt><dd>{runtime?.checkpoint.mode || none}</dd></div>
                   <div className="wide"><dt>{t("最近错误", "Last error")}</dt><dd>{runtime?.checkpoint.last_error || runtime?.backup.last_error || none}</dd></div>
                 </dl>
-                <div className="stack-list">
-                  {files.map((file) => (
-                    <article key={file.label} className="info-card">
-                      <div className="info-card-head"><strong>{file.label}</strong><span className={`state-pill ${file.value?.exists ? "online" : "offline"}`}>{file.value?.exists ? yes : no}</span></div>
-                      <dl className="detail-grid">
-                        <div className="wide"><dt>{t("路径", "Path")}</dt><dd className="mono">{file.value?.path || none}</dd></div>
-                        <div><dt>{t("大小", "Size")}</dt><dd>{formatBytes(file.value?.size_bytes, lang, none)}</dd></div>
-                        <div><dt>{t("修改时间", "Modified at")}</dt><dd>{formatTime(file.value?.modified_at_unix, lang, never)}</dd></div>
-                      </dl>
-                    </article>
-                  ))}
-                </div>
               </article>
               <article className="subpanel">
                 <div className="panel-head compact"><div><h2>TLS</h2><p className="form-note">{config.tls_enabled ? t("当前配置启用了 TLS。", "TLS is enabled in config.") : t("当前配置未启用 TLS，但仍可检查证书文件状态。", "TLS is disabled in config, but certificate files can still be inspected.")}</p></div></div>
                 <div className="toolbar">
-                  <input value={exportPath} onChange={(e) => setExportPath(e.target.value)} placeholder={t("导出路径", "Export path")} />
+                  <div className="path-field">
+                    <input value={exportPath} onChange={(e) => setExportPath(e.target.value)} placeholder={t("导出路径", "Export path")} />
+                    <button className="secondary" onClick={() => void safeRun(async () => await chooseSaveFilePath(exportPath, setExportPath))}>{t("浏览", "Browse")}</button>
+                  </div>
                   <button className="primary" onClick={() => void safeRun(async () => { const result = await invoke<ExportClientCAResult>("export_client_ca", { destinationPath: exportPath }); setExportPath(result.exported_path); await refreshTLS(); setMessage(`${t("客户端 CA 已导出", "Client CA exported")}: ${result.exported_path}`); })}>{t("导出客户端 CA", "Export client CA")}</button>
                 </div>
                 <div className="pill-strip">
@@ -412,10 +496,6 @@ export default function App() {
                   <span className={`state-pill ${tlsStatus.root_is_ca ? "online" : "offline"}`}>{t("根证书为 CA", "Root cert is CA")}: {tlsStatus.root_is_ca ? yes : no}</span>
                 </div>
                 <dl className="detail-grid">
-                  <div className="wide"><dt>{t("服务端证书", "Server cert")}</dt><dd className="mono">{tlsStatus.cert_path || config.tls_cert_path || none}</dd></div>
-                  <div className="wide"><dt>{t("服务端私钥", "Server key")}</dt><dd className="mono">{tlsStatus.key_path || config.tls_key_path || none}</dd></div>
-                  <div className="wide"><dt>{t("根证书", "Root cert")}</dt><dd className="mono">{tlsStatus.root_cert_path || none}</dd></div>
-                  <div className="wide"><dt>{t("根私钥", "Root key")}</dt><dd className="mono">{tlsStatus.root_key_path || none}</dd></div>
                   <div><dt>{t("服务端主题", "Server subject")}</dt><dd>{tlsStatus.server_subject || none}</dd></div>
                   <div><dt>{t("根主题", "Root subject")}</dt><dd>{tlsStatus.root_subject || none}</dd></div>
                   <div><dt>{t("服务端有效期至", "Server expires")}</dt><dd>{formatTime(tlsStatus.server_not_after_unix, lang, never)}</dd></div>
@@ -486,19 +566,77 @@ export default function App() {
                   {recommendedServerName ? <button className="secondary" onClick={() => setConfig((value) => ({ ...value, bundle_tls_server_name: recommendedServerName }))}>{t("使用证书 DNS 名称", "Use cert DNS name")}</button> : null}
                 </div>
                 <div className="toolbar">
-                  <input value={accessExportDir} onChange={(e) => setAccessExportDir(e.target.value)} placeholder={t("导出目录", "Export directory")} />
+                  <div className="path-field">
+                    <input value={accessExportDir} onChange={(e) => setAccessExportDir(e.target.value)} placeholder={t("导出目录", "Export directory")} />
+                    <button className="secondary" onClick={() => void safeRun(async () => await chooseDirectory(accessExportDir, setAccessExportDir))}>{t("浏览", "Browse")}</button>
+                  </div>
                 </div>
               </article>
               <article className="subpanel">
                 <div className="panel-head compact"><div><h2>{t("接入设置", "Access settings")}</h2><p className="form-note">{t("这里维护客户端真正要连的外部地址，不是本机 GUI 的管理地址。", "Maintain the client-facing address here, not the local GUI admin address.")}</p></div></div>
                 <div className="form-grid two">
+                  <div className="wide">
+                    <label>{t("接入方式", "Access mode")}</label>
+                    <div className="preset-grid">
+                      {[
+                        ["direct", t("直接地址", "Direct"), t("客户端直接连你提供的地址。", "Clients connect to the address you provide directly.")],
+                        ["tailscale", "Tailscale", t("通过 Tailscale IP 或 MagicDNS 接入。", "Use a Tailscale IP or MagicDNS hostname.")],
+                        ["easytier", "EasyTier", t("通过 EasyTier overlay 地址接入。", "Use an EasyTier overlay address.")],
+                        ["custom", t("自定义", "Custom"), t("保留自定义 provider 和原始 JSON。", "Keep a custom provider and raw JSON payload.")]
+                      ].map(([preset, title, description]) => (
+                        <button
+                          key={preset}
+                          className={`preset-card ${overlayPreset === preset ? "active" : ""}`}
+                          onClick={() => applyOverlayPreset(preset as "direct" | "tailscale" | "easytier" | "custom")}
+                        >
+                          <strong>{title}</strong>
+                          <span>{description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div><label>{t("默认设备组", "Default device group")}</label><input value={config.bundle_default_device_group} onChange={(e) => setConfig((value) => ({ ...value, bundle_default_device_group: e.target.value }))} /></div>
-                  <div><label>{t("Overlay Provider", "Overlay provider")}</label><input value={config.bundle_overlay_provider} onChange={(e) => setConfig((value) => ({ ...value, bundle_overlay_provider: e.target.value }))} placeholder={t("例如 tailscale / easytier", "For example tailscale / easytier")} /></div>
+                  <div>
+                    <label>{t("Overlay Provider", "Overlay provider")}</label>
+                    {overlayPreset === "custom" ? (
+                      <input value={config.bundle_overlay_provider} onChange={(e) => setConfig((value) => ({ ...value, bundle_overlay_provider: e.target.value }))} placeholder={t("例如 my-overlay", "For example my-overlay")} />
+                    ) : (
+                      <input value={config.bundle_overlay_provider} readOnly />
+                    )}
+                  </div>
                   <div><label>{t("服务发现模式", "Service discovery mode")}</label><select value={config.bundle_service_mode} onChange={(e) => setConfig((value) => ({ ...value, bundle_service_mode: e.target.value }))}><option value="static">static</option><option value="dns">dns</option></select></div>
-                  <div><label>{t("客户端可达 host", "Client-facing host")}</label><input value={config.bundle_service_host} onChange={(e) => setConfig((value) => ({ ...value, bundle_service_host: e.target.value }))} placeholder={t("例如 roodox.example.com", "For example roodox.example.com")} /></div>
+                  <div>
+                    <label>{overlayPreset === "tailscale" ? "Tailscale Host" : overlayPreset === "easytier" ? "EasyTier Host" : t("客户端可达 host", "Client-facing host")}</label>
+                    <input value={config.bundle_service_host} onChange={(e) => setConfig((value) => ({ ...value, bundle_service_host: e.target.value }))} placeholder={overlayPreset === "tailscale" ? t("例如 100.x.x.x 或 host.tailnet.ts.net", "For example 100.x.x.x or host.tailnet.ts.net") : overlayPreset === "easytier" ? t("例如 10.x.x.x 或 overlay 名称", "For example 10.x.x.x or an overlay hostname") : t("例如 roodox.example.com", "For example roodox.example.com")} />
+                    <p className="form-note compact-note">{accessHostHint}</p>
+                  </div>
                   <div><label>{t("客户端可达端口", "Client-facing port")}</label><input type="number" value={config.bundle_service_port} onChange={(e) => setConfig((value) => ({ ...value, bundle_service_port: Number(e.target.value) || 0 }))} /></div>
                   <div><label>TLS server name</label><input value={config.bundle_tls_server_name} onChange={(e) => setConfig((value) => ({ ...value, bundle_tls_server_name: e.target.value }))} placeholder={recommendedServerName || t("证书中的 DNS 名称", "DNS name from the certificate")} /></div>
-                  <div className="wide"><label>{t("Overlay Join JSON", "Overlay join JSON")}</label><textarea value={config.bundle_overlay_join_config_json} onChange={(e) => setConfig((value) => ({ ...value, bundle_overlay_join_config_json: e.target.value }))} /></div>
+                  {overlayPreset === "tailscale" ? (
+                    <>
+                      <div><label>{t("Tailscale Auth Key", "Tailscale Auth Key")}</label><input value={tailscaleAuthKey} onChange={(e) => updateOverlayField("authKey", e.target.value)} placeholder="tskey-..." /></div>
+                      <div><label>{t("Tailnet", "Tailnet")}</label><input value={tailscaleTailnet} onChange={(e) => updateOverlayField("tailnet", e.target.value)} placeholder={t("例如 example.ts.net", "For example example.ts.net")} /></div>
+                      <div><label>{t("客户端主机名", "Client hostname")}</label><input value={tailscaleHostname} onChange={(e) => updateOverlayField("hostname", e.target.value)} placeholder={t("可选，发给客户端 bootstrap", "Optional, passed to the client bootstrap")} /></div>
+                      <div><label>{t("控制地址", "Control URL")}</label><input value={tailscaleControlUrl} onChange={(e) => updateOverlayField("controlUrl", e.target.value)} placeholder={t("留空表示官方控制面", "Leave empty for the default control plane")} /></div>
+                    </>
+                  ) : null}
+                  {overlayPreset === "easytier" ? (
+                    <>
+                      <div><label>{t("网络名", "Network name")}</label><input value={easytierNetworkName} onChange={(e) => updateOverlayField("networkName", e.target.value)} placeholder={t("例如 roodox-prod", "For example roodox-prod")} /></div>
+                      <div><label>{t("网络密钥", "Network secret")}</label><input value={easytierNetworkSecret} onChange={(e) => updateOverlayField("networkSecret", e.target.value)} placeholder={t("可选", "Optional")} /></div>
+                      <div className="wide"><label>{t("Peer Targets", "Peer targets")}</label><textarea value={easytierPeerTargetsText} onChange={(e) => updateOverlayListField("peerTargets", e.target.value)} placeholder={t("每行一个，例如 tcp://cp.roodox.internal:11010", "One per line, for example tcp://cp.roodox.internal:11010")} /></div>
+                    </>
+                  ) : null}
+                  {overlayPreset === "direct" ? <div className="wide inline-note">{t("Direct 模式不需要额外 overlay bootstrap JSON。", "Direct mode does not require extra overlay bootstrap JSON.")}</div> : null}
+                  <div className="wide">
+                    <div className="toolbar">
+                      <label>{t("高级 Overlay JSON", "Advanced overlay JSON")}</label>
+                      <button className="ghost" onClick={() => setShowAdvancedOverlay((value) => !value)}>{showAdvancedOverlay ? t("收起高级区", "Hide advanced") : t("展开高级区", "Show advanced")}</button>
+                    </div>
+                    {(showAdvancedOverlay || overlayPreset === "custom" || !!overlayConfigError) ? (
+                      <textarea value={config.bundle_overlay_join_config_json} onChange={(e) => setConfig((value) => ({ ...value, bundle_overlay_join_config_json: e.target.value }))} placeholder={t("这里只放 overlay bootstrap JSON；普通用户优先用上面的结构化字段。", "Keep only overlay bootstrap JSON here; regular users should prefer the structured fields above.")} />
+                    ) : null}
+                  </div>
                 </div>
                 <label className="check-row"><input type="checkbox" checked={config.bundle_use_tls} onChange={(e) => setConfig((value) => ({ ...value, bundle_use_tls: e.target.checked }))} /><span>{t("接入包声明使用 TLS", "Declare TLS in the access bundle")}</span></label>
                 <div className="action-row">
@@ -537,26 +675,57 @@ export default function App() {
                 <h2>{t("运行设置", "Runtime")}</h2>
                 <div className="form-grid two">
                   <div><label>{t("服务地址", "Service address")}</label><input value={config.addr} onChange={(e) => setConfig((v) => ({ ...v, addr: e.target.value }))} /></div>
-                  <div><label>{t("数据目录", "Data root")}</label><input value={config.data_root} onChange={(e) => setConfig((v) => ({ ...v, data_root: e.target.value }))} /></div>
-                  <div className="wide"><label>{t("共享根目录", "Share root")}</label><input value={config.root_dir} onChange={(e) => setConfig((v) => ({ ...v, root_dir: e.target.value }))} /></div>
+                  <div>
+                    <label>{t("数据目录", "Data root")}</label>
+                    <div className="path-field">
+                      <input value={config.data_root} readOnly />
+                      <button className="secondary" onClick={() => void safeRun(async () => await chooseDirectory(config.data_root, (path) => setConfig((v) => ({ ...v, data_root: path }))))}>{t("浏览", "Browse")}</button>
+                    </div>
+                    <p className="form-note compact-note">{t("数据目录只能通过浏览按钮更改，避免手动覆写到错误位置。", "Change the data root only through the browse button to avoid accidentally overwriting it with a bad path.")}</p>
+                  </div>
+                  <div className="wide"><label>{t("共享根目录", "Share root")}</label><div className="path-field"><input value={config.root_dir} onChange={(e) => setConfig((v) => ({ ...v, root_dir: e.target.value }))} /><button className="secondary" onClick={() => void safeRun(async () => await chooseDirectory(config.root_dir, (path) => setConfig((v) => ({ ...v, root_dir: path }))))}>{t("浏览", "Browse")}</button></div></div>
                 </div>
-                <label className="check-row"><input type="checkbox" checked={config.remote_build_enabled} onChange={(e) => setConfig((v) => ({ ...v, remote_build_enabled: e.target.checked }))} /><span>{t("启用远程构建", "Enable remote build")}</span></label>
+                <label className="check-row"><input type="checkbox" checked={config.remote_build_enabled} onChange={(e) => {
+                  const enabled = e.target.checked;
+                  setConfig((v) => ({ ...v, remote_build_enabled: enabled }));
+                  if (enabled && hasMissingTools) {
+                    setMessage(t("远程构建依赖额外工具。可在下方直接一键安装。", "Remote build needs extra tools. Install them below."));
+                  }
+                }} /><span>{t("启用远程构建", "Enable remote build")}</span></label>
               </article>
-              <article className="subpanel"><h2>{t("构建设置", "Build")}</h2><div className="form-grid"><div><label>{t("工具目录（每行一个）", "Tool dirs (one per line)")}</label><textarea value={toolDirsText} onChange={(e) => setToolDirsText(e.target.value)} /></div><div><label>{t("必需工具（逗号分隔）", "Required tools (comma separated)")}</label><input value={requiredToolsText} onChange={(e) => setRequiredToolsText(e.target.value)} /></div></div></article>
-              <article className="subpanel"><h2>{t("传输设置", "Transport")}</h2><label className="check-row"><input type="checkbox" checked={config.tls_enabled} onChange={(e) => setConfig((v) => ({ ...v, tls_enabled: e.target.checked }))} /><span>{t("启用 TLS", "Enable TLS")}</span></label><div className="form-grid"><div><label>{t("TLS 证书路径", "TLS cert path")}</label><input value={config.tls_cert_path} onChange={(e) => setConfig((v) => ({ ...v, tls_cert_path: e.target.value }))} /></div><div><label>{t("TLS 私钥路径", "TLS key path")}</label><input value={config.tls_key_path} onChange={(e) => setConfig((v) => ({ ...v, tls_key_path: e.target.value }))} /></div></div></article>
+              <article className="subpanel"><h2>{t("传输设置", "Transport")}</h2><label className="check-row"><input type="checkbox" checked={config.tls_enabled} onChange={(e) => setConfig((v) => ({ ...v, tls_enabled: e.target.checked }))} /><span>{t("启用 TLS", "Enable TLS")}</span></label><div className="form-grid"><div><label>{t("TLS 证书路径", "TLS cert path")}</label><div className="path-field"><input value={config.tls_cert_path} onChange={(e) => setConfig((v) => ({ ...v, tls_cert_path: e.target.value }))} /><button className="secondary" onClick={() => void safeRun(async () => await chooseFile(config.tls_cert_path, (path) => setConfig((v) => ({ ...v, tls_cert_path: path }))))}>{t("浏览", "Browse")}</button></div></div><div><label>{t("TLS 私钥路径", "TLS key path")}</label><div className="path-field"><input value={config.tls_key_path} onChange={(e) => setConfig((v) => ({ ...v, tls_key_path: e.target.value }))} /><button className="secondary" onClick={() => void safeRun(async () => await chooseFile(config.tls_key_path, (path) => setConfig((v) => ({ ...v, tls_key_path: path }))))}>{t("浏览", "Browse")}</button></div></div></div></article>
               <article className="subpanel">
-                <div className="panel-head compact"><div><h2>{t("环境检测", "Environment")}</h2></div><div className="action-row compact-actions"><button className="secondary" onClick={() => void safeRun(async () => setEnv(await invoke<EnvCheck>("check_environment")))}>{t("检测环境", "Check environment")}</button><button className="primary" onClick={() => void safeRun(async () => { await invoke("install_missing_tools"); setMessage(t("安装器已启动", "Installer started")); await refreshStatus(); })}>{t("安装缺失工具", "Install missing tools")}</button></div></div>
-                {env ? <dl className="detail-grid"><div><dt>OS</dt><dd>{env.os}</dd></div><div><dt>winget</dt><dd>{env.winget_installed ? t("可用", "available") : t("缺失", "missing")}</dd></div><div><dt>cmake</dt><dd>{env.tools?.cmake?.installed ? `${t("可用", "available")} · ${env.tools.cmake.version ?? "ok"}` : `${t("缺失", "missing")} · ${env.tools?.cmake?.error ?? "n/a"}`}</dd></div><div><dt>make</dt><dd>{env.tools?.make?.installed ? `${t("可用", "available")} · ${env.tools.make.version ?? "ok"}` : `${t("缺失", "missing")} · ${env.tools?.make?.error ?? "n/a"}`}</dd></div><div className="wide"><dt>{t("推荐目录", "Recommended dirs")}</dt><dd>{(env.recommended_tool_dirs ?? []).join("; ") || none}</dd></div></dl> : <div className="empty-state">{t("暂无环境数据", "No environment data")}</div>}
+                <div className="panel-head compact">
+                  <div>
+                    <h2>{t("工具检测", "Tool detection")}</h2>
+                    <p className="form-note">{t("这些工具只在启用远程构建时才需要。安装后会自动检测状态；这里只保留检测和一键安装，不再暴露目录与原始字段。", "These tools are only needed when remote build is enabled. Status is detected automatically after install, and raw directories/fields are no longer exposed here.")}</p>
+                  </div>
+                  <div className="action-row compact-actions">
+                    <button className="secondary" onClick={() => void safeRun(async () => setEnv(await invoke<EnvCheck>("check_environment")))}>{t("重新检测", "Re-check")}</button>
+                    <button className="primary" disabled={installToolsDisabled} onClick={() => void safeRun(async () => { await invoke("install_missing_tools"); setMessage(t("工具安装器已启动，完成后可重新检测。", "Tool installer started. Re-check after it finishes.")); await refreshStatus(); })}>{installToolsLabel}</button>
+                  </div>
+                </div>
+                {env ? (
+                  <div className="stack-list">
+                    <div className="info-card">
+                      <div className="info-card-head">
+                        <strong>{t("系统环境", "Environment")}</strong>
+                        <span className={`state-pill ${toolIssuesActive ? "degraded" : "online"}`}>{buildToolsRequired ? (hasMissingTools ? t("缺少工具", "Missing tools") : t("已就绪", "Ready")) : t("按需启用", "Optional")}</span>
+                      </div>
+                      <dl className="detail-grid">
+                        <div><dt>OS</dt><dd>{env.os}</dd></div>
+                        <div><dt>winget</dt><dd>{env.winget_installed ? t("可用", "available") : t("缺失", "missing")}</dd></div>
+                        <div className="wide"><dt>{t("工具状态", "Tool status")}</dt><dd>{Object.entries(env.tools ?? {}).map(([name, tool]) => `${name}: ${tool.installed ? t("可用", "available") : t("缺失", "missing")}`).join(" · ") || none}</dd></div>
+                      </dl>
+                    </div>
+                    {!buildToolsRequired ? <div className="inline-note">{t("当前未启用远程构建，因此缺少这些工具不会影响服务启动和客户端接入。", "Remote build is currently off, so missing tools do not block server startup or client access.")}</div> : null}
+                    {!env.winget_installed && hasMissingTools ? <div className="inline-warning">{t("没有检测到 winget，自动安装工具会失败。", "winget is not available, so automatic tool installation will fail.")}</div> : null}
+                    {envWarningText ? <div className="inline-warning">{envWarningText}</div> : null}
+                  </div>
+                ) : <div className="empty-state">{t("暂无环境数据", "No environment data")}</div>}
               </article>
             </div>
             <div className="action-row"><button className="primary" onClick={() => void safeRun(async () => { await persistConfig(buildConfigForSave(), t("配置已保存", "Config saved")); })}>{t("保存设置", "Save settings")}</button><button className="secondary" onClick={() => void safeRun(loadConfig)}>{t("重新加载", "Reload")}</button></div>
-          </section>
-        ) : null}
-        {view === "security" ? (
-          <section className="panel">
-            <div className="panel-head"><div><p className="eyebrow">{t("安全", "Security")}</p><h1>{t("安全", "Security")}</h1><p className="panel-subtitle">{t("将共享密钥与连接认证单独收口，避免和普通设置混在一起。", "Keep shared secret handling isolated from ordinary settings.")}</p></div></div>
-            <article className="subpanel"><label className="check-row"><input type="checkbox" checked={config.auth_enabled} onChange={(e) => setConfig((v) => ({ ...v, auth_enabled: e.target.checked }))} /><span>{t("启用共享密钥认证", "Enable shared-secret auth")}</span></label><div className="form-grid"><div><label>{t("共享密钥", "Shared secret")}</label><input type="password" value={config.shared_secret} onChange={(e) => setConfig((v) => ({ ...v, shared_secret: e.target.value }))} /></div></div><p className="form-note">{t("客户端接入包和 Join Bundle 已转到“接入”页统一导出。", "Client access bundles and join bundles are now exported from the Access page.")}</p></article>
-            <div className="action-row"><button className="primary" onClick={() => void safeRun(async () => await persistConfig(buildConfigForSave(), t("配置已保存", "Config saved")))}>{t("保存安全设置", "Save security")}</button></div>
           </section>
         ) : null}
       </main>

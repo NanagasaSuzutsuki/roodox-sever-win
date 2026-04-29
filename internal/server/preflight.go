@@ -89,7 +89,7 @@ func ensureRootDirWritable(rootDir string) error {
 
 func ensureBuildToolPath() error {
 	raw := strings.TrimSpace(os.Getenv(envBuildToolDirs))
-	if raw == "" {
+	if raw == "" && len(recommendedBuildToolDirs()) == 0 {
 		return nil
 	}
 
@@ -119,7 +119,33 @@ func ensureBuildToolPath() error {
 		merged = append([]string{absDir}, merged...)
 		seen[key] = struct{}{}
 	}
+	for _, dir := range recommendedBuildToolDirs() {
+		key := strings.ToLower(filepath.Clean(dir))
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		merged = append([]string{dir}, merged...)
+		seen[key] = struct{}{}
+	}
 	return os.Setenv("PATH", strings.Join(merged, string(os.PathListSeparator)))
+}
+
+func recommendedBuildToolDirs() []string {
+	if runtime.GOOS != "windows" {
+		return nil
+	}
+
+	candidates := []string{
+		`C:\Program Files\CMake\bin`,
+		`C:\Program Files (x86)\GnuWin32\bin`,
+	}
+	dirs := make([]string, 0, len(candidates))
+	for _, dir := range candidates {
+		if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
+			dirs = append(dirs, dir)
+		}
+	}
+	return dirs
 }
 
 func requiredBuildTools() []string {

@@ -10,7 +10,6 @@ use config::{
 use models::*;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
-use std::collections::HashSet;
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -128,6 +127,58 @@ where
     serde_json::from_slice(&output.stdout).map_err(|e| format!("parse admin json failed: {e}"))
 }
 
+fn apply_initial_path(
+    mut dialog: rfd::FileDialog,
+    initial_path: Option<String>,
+) -> rfd::FileDialog {
+    let Some(raw) = initial_path else {
+        return dialog;
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return dialog;
+    }
+
+    let path = PathBuf::from(trimmed);
+    if path.is_dir() {
+        return dialog.set_directory(path);
+    }
+
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            dialog = dialog.set_directory(parent);
+        }
+    }
+    if let Some(name) = path.file_name().and_then(|value| value.to_str()) {
+        dialog = dialog.set_file_name(name);
+    }
+    dialog
+}
+
+#[tauri::command]
+fn pick_directory(initial_path: Option<String>) -> Result<Option<String>, String> {
+    let dialog = apply_initial_path(rfd::FileDialog::new(), initial_path);
+    Ok(dialog
+        .pick_folder()
+        .map(|path| path.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+fn pick_file(initial_path: Option<String>) -> Result<Option<String>, String> {
+    let dialog = apply_initial_path(rfd::FileDialog::new(), initial_path);
+    Ok(dialog
+        .pick_file()
+        .map(|path| path.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+fn save_file_path(initial_path: Option<String>) -> Result<Option<String>, String> {
+    let dialog = apply_initial_path(rfd::FileDialog::new(), initial_path);
+    Ok(dialog
+        .save_file()
+        .map(|path| path.to_string_lossy().to_string()))
+}
+
 fn tool_info_from_path(path: String) -> ToolInfo {
     let mut version_cmd = Command::new(&path);
     suppress_command_window(&mut version_cmd);
@@ -224,6 +275,10 @@ fn recommended_tool_dirs() -> Vec<String> {
         }
     }
     dirs
+}
+
+fn discover_build_tool(tool: &str) -> ToolInfo {
+    find_tool_with_dirs(tool, &recommended_tool_dirs())
 }
 
 #[tauri::command]
@@ -594,23 +649,9 @@ fn server_status() -> Result<ServerStatus, String> {
 
 #[tauri::command]
 fn check_environment() -> Result<EnvCheck, String> {
-    let cfg = read_config_file().unwrap_or_else(|_| AppConfig::default());
-    let mut search_dirs = cfg.build_tool_dirs.clone();
-    for d in recommended_tool_dirs() {
-        if !search_dirs.iter().any(|v| v.eq_ignore_ascii_case(&d)) {
-            search_dirs.push(d);
-        }
-    }
-
     let mut tools = std::collections::HashMap::new();
-    tools.insert(
-        "cmake".to_string(),
-        find_tool_with_dirs("cmake", &search_dirs),
-    );
-    tools.insert(
-        "make".to_string(),
-        find_tool_with_dirs("make", &search_dirs),
-    );
+    tools.insert("cmake".to_string(), discover_build_tool("cmake"));
+    tools.insert("make".to_string(), discover_build_tool("make"));
 
     let winget_installed = find_tool("winget").installed;
 
@@ -618,8 +659,6 @@ fn check_environment() -> Result<EnvCheck, String> {
         os: std::env::consts::OS.to_string(),
         winget_installed,
         tools,
-        recommended_tool_dirs: recommended_tool_dirs(),
-        config_tool_dirs: cfg.build_tool_dirs,
     })
 }
 
@@ -669,31 +708,18 @@ fn install_missing_tools() -> Result<(), String> {
     thread::spawn(|| {
         push_log(format!("{} installer started", now_hms()));
 
-        let cmake = find_tool("cmake");
+        let cmake = discover_build_tool("cmake");
         if !cmake.installed {
             if let Err(e) = run_winget_install("Kitware.CMake") {
                 push_log(format!("{} {e}", now_hms()));
             }
         }
 
-        let make = find_tool("make");
+        let make = discover_build_tool("make");
         if !make.installed {
             if let Err(e) = run_winget_install("GnuWin32.Make") {
                 push_log(format!("{} {e}", now_hms()));
             }
-        }
-
-        if let Ok(mut cfg) = read_config_file() {
-            let mut merged = cfg.build_tool_dirs.clone();
-            let mut seen: HashSet<String> = merged.iter().map(|s| s.to_lowercase()).collect();
-            for d in recommended_tool_dirs() {
-                let key = d.to_lowercase();
-                if seen.insert(key) {
-                    merged.push(d);
-                }
-            }
-            cfg.build_tool_dirs = merged;
-            let _ = write_config_file(cfg);
         }
 
         if let Ok(mut flag) = INSTALLING.lock() {
@@ -710,6 +736,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             load_config,
             save_config,
+            pick_directory,
+            pick_file,
+            save_file_path,
             read_logs,
             load_workbench_snapshot,
             load_workbench_observability,

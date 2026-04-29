@@ -184,6 +184,7 @@ SetupLogging=yes
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"
 Name: "installservice"; Description: "Install and start the Roodox Windows service"; GroupDescription: "Server startup:"; Flags: checkedonce
+Name: "installbuildtools"; Description: "Check and install remote-build tools if needed"; GroupDescription: "Optional setup:"
 
 [Dirs]
 Name: "{commonappdata}\Roodox"
@@ -208,6 +209,7 @@ Name: "{commondesktop}\Roodox Workbench"; Filename: "{app}\roodox-workbench.exe"
 
 [Run]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\installer\initialize-installed-layout.ps1"" -ConfigPath ""{commonappdata}\Roodox\roodox.config.json"" -ConfigTemplatePath ""{app}\roodox.config.example.json"" -BinaryPath ""{app}\roodox_server.exe"" -BootstrapPath ""{app}\roodox-workbench.bootstrap.json"" -ProjectRoot ""{app}"" -DataRoot ""{commonappdata}\Roodox"""; Flags: runhidden waituntilterminated
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\installer\ensure-build-tools.ps1"" -AutoInstall"; Flags: runhidden waituntilterminated; Tasks: installbuildtools
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\server\uninstall-windows-service.ps1"" -ConfigPath ""{commonappdata}\Roodox\roodox.config.json"" -Force"; Flags: runhidden waituntilterminated; Check: ShouldRefreshExistingService
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\server\install-deployment.ps1"" -ConfigPath ""{commonappdata}\Roodox\roodox.config.json"" -AsService"; Flags: runhidden waituntilterminated; Check: ShouldRefreshExistingService
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\server\start-windows-service.ps1"" -ConfigPath ""{commonappdata}\Roodox\roodox.config.json"""; Flags: runhidden waituntilterminated; Check: ShouldRestartExistingService

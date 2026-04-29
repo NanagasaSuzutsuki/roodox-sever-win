@@ -42,9 +42,7 @@ The final effective value may differ from the raw JSON because environment overr
 | `root_dir` | string | code default `D:/RoodoxShare`, example uses `share` | 实际文件共享根目录 | 高 |
 | `db_path` | string | `roodox.db` | SQLite 主库路径 | 高 |
 | `runtime` | object | see below | 运行时二进制、日志、PID、Service | 高 |
-| `remote_build_enabled` | bool | `true` | 是否允许远程构建接口 | 中 |
-| `build_tool_dirs` | string[] | empty | 额外构建工具搜索目录 | 中 |
-| `required_build_tools` | string[] | `cmake,make,build-essential` | 构建工具必需列表 | 低 |
+| `remote_build_enabled` | bool | `false` | 是否允许远程构建接口；默认关闭，不影响普通客户端接入 | 中 |
 | `auth_enabled` | bool | `false` | 是否启用共享密钥认证 | 高 |
 | `shared_secret` | string | empty | 共享密钥 | 高 |
 | `tls_enabled` | bool | `false` | 是否启用 TLS | 高 |
@@ -202,8 +200,8 @@ The final effective value may differ from the raw JSON because environment overr
 | 环境变量 / Env | 覆盖字段 / Field | 说明 / Notes |
 | --- | --- | --- |
 | `ROODOX_REMOTE_BUILD_ENABLED` | `remote_build_enabled` | bool |
-| `ROODOX_BUILD_TOOL_DIRS` | `build_tool_dirs` | 用 OS path separator 分隔，Windows 下一般是 `;` |
-| `ROODOX_BUILD_REQUIRED_TOOLS` | `required_build_tools` | 逗号分隔 |
+| `ROODOX_BUILD_TOOL_DIRS` | internal remote-build search path | 兼容旧部署；普通安装不需要手动设置 |
+| `ROODOX_BUILD_REQUIRED_TOOLS` | internal remote-build tool list | 兼容旧部署；普通安装不需要手动设置 |
 | `ROODOX_AUTH_ENABLED` | `auth_enabled` | bool |
 | `ROODOX_SHARED_SECRET` | `shared_secret` | 高敏感 |
 | `ROODOX_TLS_ENABLED` | `tls_enabled` | bool |

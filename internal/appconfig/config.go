@@ -189,7 +189,7 @@ func Default() Config {
 				StartType:   defaultWindowsServiceStartType,
 			},
 		},
-		RemoteBuildEnabled: true,
+		RemoteBuildEnabled: false,
 		BuildToolDirs:      []string{},
 		RequiredBuildTools: []string{"cmake", "make", "build-essential"},
 		AuthEnabled:        false,

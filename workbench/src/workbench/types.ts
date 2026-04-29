@@ -1,5 +1,5 @@
 export type Lang = "zh" | "en";
-export type ViewKey = "dashboard" | "devices" | "operations" | "access" | "logs" | "settings" | "security";
+export type ViewKey = "dashboard" | "devices" | "operations" | "access" | "logs" | "settings";
 export type DeviceFilter = "all" | "online" | "degraded" | "offline" | "mounted" | `role:${string}` | `overlay:${string}`;
 export type DeviceSort = "recent" | "name";
 
@@ -8,8 +8,6 @@ export type AppConfig = {
   data_root: string;
   root_dir: string;
   remote_build_enabled: boolean;
-  build_tool_dirs: string[];
-  required_build_tools: string[];
   auth_enabled: boolean;
   shared_secret: string;
   tls_enabled: boolean;
@@ -39,8 +37,6 @@ export type EnvCheck = {
   os: string;
   winget_installed: boolean;
   tools: Record<string, ToolInfo>;
-  recommended_tool_dirs: string[];
-  config_tool_dirs: string[];
 };
 
 export type FileStatSummary = { path: string; exists: boolean; size_bytes: number; modified_at_unix: number };

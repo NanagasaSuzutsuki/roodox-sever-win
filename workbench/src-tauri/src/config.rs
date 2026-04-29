@@ -1,6 +1,5 @@
 use crate::models::AppConfig;
 use serde_json::{Map, Value};
-use std::collections::HashSet;
 use std::fs;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -164,22 +163,6 @@ pub fn config_path() -> PathBuf {
     discover_config_path().unwrap_or_else(|| project_root().join("roodox.config.json"))
 }
 
-fn normalize_list(input: Vec<String>) -> Vec<String> {
-    let mut seen = HashSet::new();
-    let mut out = Vec::new();
-    for item in input {
-        let trimmed = item.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        let key = trimmed.to_lowercase();
-        if seen.insert(key) {
-            out.push(trimmed.to_string());
-        }
-    }
-    out
-}
-
 fn parse_discovery_addr(addr: &str) -> (String, u32) {
     let trimmed = addr.trim();
     if trimmed.is_empty() {
@@ -278,15 +261,6 @@ fn normalize_config(mut cfg: AppConfig) -> AppConfig {
         cfg.addr = ":50051".to_string();
     }
     cfg.root_dir = cfg.root_dir.trim().to_string();
-    cfg.build_tool_dirs = normalize_list(cfg.build_tool_dirs);
-    cfg.required_build_tools = normalize_list(cfg.required_build_tools);
-    if cfg.required_build_tools.is_empty() {
-        cfg.required_build_tools = vec![
-            "cmake".to_string(),
-            "make".to_string(),
-            "build-essential".to_string(),
-        ];
-    }
     cfg.shared_secret = cfg.shared_secret.trim().to_string();
     if cfg.tls_cert_path.trim().is_empty() {
         cfg.tls_cert_path = "certs/roodox-server-cert.pem".to_string();
@@ -334,23 +308,10 @@ fn read_bool(value: &Value, key: &str, default: bool) -> bool {
     value.get(key).and_then(Value::as_bool).unwrap_or(default)
 }
 
-fn read_string_list(value: &Value, key: &str, default: &[&str]) -> Vec<String> {
-    value
-        .get(key)
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(Value::as_str)
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_else(|| default.iter().map(|item| (*item).to_string()).collect())
-}
-
 fn extract_app_config(value: &Value) -> AppConfig {
     let default = AppConfig::default();
-    let (derived_host, derived_port) = parse_discovery_addr(&read_string(value, "addr", &default.addr));
+    let (derived_host, derived_port) =
+        parse_discovery_addr(&read_string(value, "addr", &default.addr));
     let tls_enabled = read_bool(value, "tls_enabled", default.tls_enabled);
     normalize_config(AppConfig {
         addr: read_string(value, "addr", &default.addr),
@@ -360,12 +321,6 @@ fn extract_app_config(value: &Value) -> AppConfig {
             value,
             "remote_build_enabled",
             default.remote_build_enabled,
-        ),
-        build_tool_dirs: read_string_list(value, "build_tool_dirs", &[]),
-        required_build_tools: read_string_list(
-            value,
-            "required_build_tools",
-            &["cmake", "make", "build-essential"],
         ),
         auth_enabled: read_bool(value, "auth_enabled", default.auth_enabled),
         shared_secret: read_string(value, "shared_secret", &default.shared_secret),
@@ -404,12 +359,22 @@ fn extract_app_config(value: &Value) -> AppConfig {
         ),
         bundle_use_tls: read_nested_bool(
             value,
-            &["control_plane", "join_bundle", "service_discovery", "use_tls"],
+            &[
+                "control_plane",
+                "join_bundle",
+                "service_discovery",
+                "use_tls",
+            ],
             tls_enabled,
         ),
         bundle_tls_server_name: read_nested_string(
             value,
-            &["control_plane", "join_bundle", "service_discovery", "tls_server_name"],
+            &[
+                "control_plane",
+                "join_bundle",
+                "service_discovery",
+                "tls_server_name",
+            ],
             &default.bundle_tls_server_name,
         ),
     })
@@ -445,28 +410,8 @@ pub fn write_config_file(cfg: AppConfig) -> Result<AppConfig, String> {
             "remote_build_enabled".to_string(),
             Value::Bool(normalized.remote_build_enabled),
         );
-        object.insert(
-            "build_tool_dirs".to_string(),
-            Value::Array(
-                normalized
-                    .build_tool_dirs
-                    .iter()
-                    .cloned()
-                    .map(Value::String)
-                    .collect(),
-            ),
-        );
-        object.insert(
-            "required_build_tools".to_string(),
-            Value::Array(
-                normalized
-                    .required_build_tools
-                    .iter()
-                    .cloned()
-                    .map(Value::String)
-                    .collect(),
-            ),
-        );
+        object.remove("build_tool_dirs");
+        object.remove("required_build_tools");
         object.insert(
             "auth_enabled".to_string(),
             Value::Bool(normalized.auth_enabled),

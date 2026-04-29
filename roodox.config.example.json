@@ -16,16 +16,7 @@
       "start_type": "auto"
     }
   },
-  "remote_build_enabled": true,
-  "build_tool_dirs": [
-    "C:/Program Files/CMake/bin",
-    "C:/Program Files (x86)/GnuWin32/bin"
-  ],
-  "required_build_tools": [
-    "cmake",
-    "make",
-    "build-essential"
-  ],
+  "remote_build_enabled": false,
   "auth_enabled": true,
   "shared_secret": "replace-with-a-long-random-secret",
   "tls_enabled": true,
