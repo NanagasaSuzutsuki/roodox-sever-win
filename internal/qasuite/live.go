@@ -20,6 +20,7 @@ func RunLive(ctx context.Context, rt Runtime, opts LiveOptions) error {
 	buildUnit := JoinRunPath(runRoot, "build-unit")
 	filePath := JoinRunPath(runRoot, "data.txt")
 	deviceID := "qa-" + BuildRunID("live-device")
+	buildID := "skipped"
 
 	if !opts.KeepArtifacts {
 		defer func() { _ = RemoveRunRoot(rt.RootDir, runRoot) }()
@@ -73,7 +74,7 @@ func RunLive(ctx context.Context, rt Runtime, opts LiveOptions) error {
 		Platform:        "windows",
 		OverlayProvider: "local",
 		OverlayAddress:  "127.0.0.1",
-		Capabilities:    []string{"sync", "build", "admin"},
+		Capabilities:    BuildCapabilitySet(rt),
 		ServerId:        rt.ServerID,
 		DeviceGroup:     "default",
 	})
@@ -206,21 +207,26 @@ func RunLive(ctx context.Context, rt Runtime, opts LiveOptions) error {
 		return fmt.Errorf("ListDir returned no entries for %q", runRoot)
 	}
 
-	opCtx, cancel = OpContext(ctx, 8*time.Second)
-	buildResp, err := c.StartBuild(opCtx, buildUnit, "smoke")
-	cancel()
-	if err != nil {
-		return fmt.Errorf("StartBuild failed: %w", err)
-	}
-	buildStatus, buildLog, err := WaitBuildTerminal(ctx, c, buildResp.GetBuildId(), 30*time.Second)
-	if err != nil {
-		return fmt.Errorf("WaitBuildTerminal failed: %w", err)
-	}
-	if buildStatus.GetStatus() != "success" {
-		return fmt.Errorf("build %q ended with status=%q error=%q", buildResp.GetBuildId(), buildStatus.GetStatus(), buildStatus.GetError())
-	}
-	if strings.TrimSpace(buildLog.GetText()) == "" {
-		return fmt.Errorf("FetchBuildLog returned empty log")
+	if rt.RemoteBuildEnabled {
+		opCtx, cancel = OpContext(ctx, 8*time.Second)
+		buildResp, err := c.StartBuild(opCtx, buildUnit, "smoke")
+		cancel()
+		if err != nil {
+			return fmt.Errorf("StartBuild failed: %w", err)
+		}
+		buildID = buildResp.GetBuildId()
+		buildStatus, buildLog, err := WaitBuildTerminal(ctx, c, buildResp.GetBuildId(), 30*time.Second)
+		if err != nil {
+			return fmt.Errorf("WaitBuildTerminal failed: %w", err)
+		}
+		if buildStatus.GetStatus() != "success" {
+			return fmt.Errorf("build %q ended with status=%q error=%q", buildResp.GetBuildId(), buildStatus.GetStatus(), buildStatus.GetError())
+		}
+		if strings.TrimSpace(buildLog.GetText()) == "" {
+			return fmt.Errorf("FetchBuildLog returned empty log")
+		}
+	} else {
+		fmt.Printf("[live] skip build validation because remote build is disabled by config\n")
 	}
 
 	opCtx, cancel = OpContext(ctx, 8*time.Second)
@@ -250,7 +256,7 @@ func RunLive(ctx context.Context, rt Runtime, opts LiveOptions) error {
 		return err
 	}
 
-	fmt.Printf("[live] ok device=%s build=%s backup=%s write_calls=%d\n", deviceID, buildResp.GetBuildId(), backupResp.GetPath(), obsResp.GetWriteFileRangeCalls())
+	fmt.Printf("[live] ok device=%s build=%s backup=%s write_calls=%d\n", deviceID, buildID, backupResp.GetPath(), obsResp.GetWriteFileRangeCalls())
 	return nil
 }
 

@@ -1,5 +1,5 @@
 param(
-    [string]$ConfigPath = "roodox.config.json",
+    [string]$ConfigPath = "testdata/deployment-smoke/roodox-smoke.config.json",
     [switch]$KeepArtifacts
 )
 

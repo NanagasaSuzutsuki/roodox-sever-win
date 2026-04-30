@@ -31,15 +31,16 @@ type Override struct {
 }
 
 type Runtime struct {
-	ConfigPath      string
-	ConfigDir       string
-	DialAddr        string
-	RootDir         string
-	SharedSecret    string
-	TLSEnabled      bool
-	TLSRootCertPath string
-	TLSServerName   string
-	ServerID        string
+	ConfigPath         string
+	ConfigDir          string
+	DialAddr           string
+	RootDir            string
+	SharedSecret       string
+	TLSEnabled         bool
+	TLSRootCertPath    string
+	TLSServerName      string
+	ServerID           string
+	RemoteBuildEnabled bool
 }
 
 func LoadRuntime(override Override) (Runtime, error) {
@@ -92,15 +93,16 @@ func LoadRuntime(override Override) (Runtime, error) {
 	}
 
 	return Runtime{
-		ConfigPath:      absConfigPath,
-		ConfigDir:       configDir,
-		DialAddr:        dialAddr,
-		RootDir:         rootDir,
-		SharedSecret:    sharedSecret,
-		TLSEnabled:      cfg.TLSEnabled,
-		TLSRootCertPath: tlsRootCertPath,
-		TLSServerName:   tlsServerName,
-		ServerID:        serverID,
+		ConfigPath:         absConfigPath,
+		ConfigDir:          configDir,
+		DialAddr:           dialAddr,
+		RootDir:            rootDir,
+		SharedSecret:       sharedSecret,
+		TLSEnabled:         cfg.TLSEnabled,
+		TLSRootCertPath:    tlsRootCertPath,
+		TLSServerName:      tlsServerName,
+		ServerID:           serverID,
+		RemoteBuildEnabled: cfg.RemoteBuildEnabled,
 	}, nil
 }
 
@@ -240,6 +242,14 @@ func ExpectConflict(conflicted bool, conflictPath string, label string) error {
 
 func IsAuthDisabled(rt Runtime) bool {
 	return strings.TrimSpace(rt.SharedSecret) == ""
+}
+
+func BuildCapabilitySet(rt Runtime) []string {
+	capabilities := []string{"sync", "admin"}
+	if rt.RemoteBuildEnabled {
+		capabilities = append(capabilities, "build")
+	}
+	return capabilities
 }
 
 func ExpectStringContains(value, needle, label string) error {

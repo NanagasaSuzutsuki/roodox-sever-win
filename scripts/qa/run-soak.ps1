@@ -1,5 +1,5 @@
 param(
-    [string]$ConfigPath = "roodox.config.json",
+    [string]$ConfigPath = "testdata/deployment-smoke/roodox-smoke.config.json",
     [string]$Duration = "2m",
     [int]$Workers = 4,
     [string]$BuildInterval = "20s",

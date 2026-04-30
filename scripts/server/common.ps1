@@ -561,6 +561,11 @@ function Copy-RoodoxFileWithRetry {
         [int]$TimeoutSeconds = 30
     )
 
+    $destinationDir = Split-Path -Parent $DestinationPath
+    if (-not [string]::IsNullOrWhiteSpace($destinationDir)) {
+        New-Item -ItemType Directory -Force -Path $destinationDir | Out-Null
+    }
+
     $deadline = (Get-Date).AddSeconds([Math]::Max($TimeoutSeconds, 1))
     while ($true) {
         try {

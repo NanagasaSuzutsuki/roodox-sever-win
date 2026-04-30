@@ -33,6 +33,8 @@ By default, the tool loads `roodox.config.json`, derives the dial address and TL
 如果没有显式指定 `-keep-artifacts`，这些临时 QA 工件会自动清理。  
 Unless `-keep-artifacts` is specified, those temporary QA artifacts are cleaned up automatically.
 
+When `remote_build_enabled` is `false` in the selected config, `live` and `faults` skip build-specific assertions, and `soak` automatically forces `-build-interval 0`.
+
 ## PowerShell Wrappers / PowerShell 包装脚本
 
 Windows 友好的包装脚本位于 [`../scripts/qa`](../scripts/qa)：  
@@ -130,6 +132,7 @@ This validation checks, in an isolated deployment directory:
   Optional backup trigger
 - 周期性远程构建  
   Periodic remote builds
+  When remote build is disabled by config, build pressure is skipped instead of failing the suite.
 
 `faults` 覆盖：  
 `faults` covers:
@@ -144,6 +147,7 @@ This validation checks, in an isolated deployment directory:
   Stale version conflicts for `WriteFile`, `WriteFileRange`, `SetFileSize`
 - 缺失构建单元的失败路径  
   Missing build unit failure path
+  This case is skipped when remote build is disabled by config.
 - 未知设备控制面错误  
   Unknown device control-plane errors
 

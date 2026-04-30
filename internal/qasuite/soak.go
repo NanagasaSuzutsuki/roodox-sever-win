@@ -31,6 +31,10 @@ func RunSoak(ctx context.Context, rt Runtime, opts SoakOptions) error {
 	if opts.BuildInterval < 0 {
 		opts.BuildInterval = 0
 	}
+	if !rt.RemoteBuildEnabled && opts.BuildInterval > 0 {
+		fmt.Printf("[soak] remote build disabled by config, forcing build interval to 0\n")
+		opts.BuildInterval = 0
+	}
 
 	runRoot := BuildRunRelRoot("soak")
 	buildUnit := JoinRunPath(runRoot, "build-unit")
@@ -59,7 +63,7 @@ func RunSoak(ctx context.Context, rt Runtime, opts SoakOptions) error {
 		Platform:        "windows",
 		OverlayProvider: "local",
 		OverlayAddress:  "127.0.0.1",
-		Capabilities:    []string{"sync", "build", "admin"},
+		Capabilities:    BuildCapabilitySet(rt),
 		ServerId:        rt.ServerID,
 		DeviceGroup:     "default",
 	}); err != nil {

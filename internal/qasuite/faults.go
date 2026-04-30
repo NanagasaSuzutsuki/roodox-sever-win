@@ -109,24 +109,28 @@ func RunFaults(ctx context.Context, rt Runtime, opts FaultOptions) error {
 		return err
 	}
 
-	opCtx, cancel = OpContext(ctx, 8*time.Second)
-	buildResp, err := c.StartBuild(opCtx, missingBuildUnit, "smoke")
-	cancel()
-	if err != nil {
-		if err := ExpectStringContains(err.Error(), "unsupported build unit", "StartBuild immediate error"); err != nil {
-			return err
+	if rt.RemoteBuildEnabled {
+		opCtx, cancel = OpContext(ctx, 8*time.Second)
+		buildResp, err := c.StartBuild(opCtx, missingBuildUnit, "smoke")
+		cancel()
+		if err != nil {
+			if err := ExpectStringContains(err.Error(), "unsupported build unit", "StartBuild immediate error"); err != nil {
+				return err
+			}
+		} else {
+			statusResp, _, err := WaitBuildTerminal(ctx, c, buildResp.GetBuildId(), 15*time.Second)
+			if err != nil {
+				return fmt.Errorf("missing-build-unit terminal wait failed: %w", err)
+			}
+			if statusResp.GetStatus() != "failed" {
+				return fmt.Errorf("missing-build-unit status=%q, want failed", statusResp.GetStatus())
+			}
+			if err := ExpectStringContains(statusResp.GetError(), "unsupported build unit", "missing-build-unit error"); err != nil {
+				return err
+			}
 		}
 	} else {
-		statusResp, _, err := WaitBuildTerminal(ctx, c, buildResp.GetBuildId(), 15*time.Second)
-		if err != nil {
-			return fmt.Errorf("missing-build-unit terminal wait failed: %w", err)
-		}
-		if statusResp.GetStatus() != "failed" {
-			return fmt.Errorf("missing-build-unit status=%q, want failed", statusResp.GetStatus())
-		}
-		if err := ExpectStringContains(statusResp.GetError(), "unsupported build unit", "missing-build-unit error"); err != nil {
-			return err
-		}
+		fmt.Printf("[faults] skip build fault case because remote build is disabled by config\n")
 	}
 
 	opCtx, cancel = OpContext(ctx, 8*time.Second)

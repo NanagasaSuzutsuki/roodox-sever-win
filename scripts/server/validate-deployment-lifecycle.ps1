@@ -20,11 +20,50 @@ function Get-FileHashOrEmpty {
 
 function Remove-PathIfPresent {
     param(
-        [string]$Path
+        [string]$Path,
+        [int]$TimeoutSeconds = 20
     )
 
-    if (Test-Path -LiteralPath $Path) {
-        Remove-Item -LiteralPath $Path -Recurse -Force
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    $deadline = (Get-Date).AddSeconds([Math]::Max($TimeoutSeconds, 1))
+    while ($true) {
+        try {
+            if (Test-Path -LiteralPath $Path -PathType Container) {
+                Get-ChildItem -LiteralPath $Path -Force -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+                    try {
+                        $_.Attributes = 'Normal'
+                    }
+                    catch {
+                    }
+                }
+                try {
+                    (Get-Item -LiteralPath $Path -Force -ErrorAction Stop).Attributes = 'Directory'
+                }
+                catch {
+                }
+                [System.IO.Directory]::Delete([System.IO.Path]::GetFullPath($Path), $true)
+            } else {
+                try {
+                    (Get-Item -LiteralPath $Path -Force -ErrorAction Stop).Attributes = 'Normal'
+                }
+                catch {
+                }
+                [System.IO.File]::Delete([System.IO.Path]::GetFullPath($Path))
+            }
+            return
+        }
+        catch {
+            if (-not (Test-Path -LiteralPath $Path)) {
+                return
+            }
+            if ((Get-Date) -ge $deadline) {
+                throw
+            }
+            Start-Sleep -Milliseconds 250
+        }
     }
 }
 

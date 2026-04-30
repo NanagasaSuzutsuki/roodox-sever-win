@@ -53,9 +53,9 @@ Files such as `common.ps1` are shared helpers, not direct entrypoints.
 | --- | --- | --- |
 | `run-live-regression.ps1` | `ConfigPath`, `KeepArtifacts` | 跑一次活体回归 |
 | `run-fault-injection.ps1` | `ConfigPath`, `KeepArtifacts` | 跑一次故障注入验证 |
-| `run-soak.ps1` | `ConfigPath`, `Duration`, `Workers`, `BuildInterval`, `KeepArtifacts` | 长稳压测 |
+| `run-soak.ps1` | `ConfigPath`, `Duration`, `Workers`, `BuildInterval`, `KeepArtifacts` | 长稳压测，`BuildInterval=0` 可禁用构建压测 |
 | `run-restart-recovery.ps1` | `ConfigPath`, `PreSeconds`, `DownSeconds`, `PostSeconds`, `KeepLogs`, `CaptureRestartServerLogs` | 重启恢复探针 |
-| `run-full-qa.ps1` | `ConfigPath`, `SoakDuration`, `SoakWorkers`, `BuildInterval` | 串联一整套 QA |
+| `run-full-qa.ps1` | `ConfigPath`, `SoakDuration`, `SoakWorkers`, `BuildInterval` | 串联一整套 QA，必要时自动拉起 smoke 服务 |
 
 这些脚本的本质是给 `cmd/roodox_qa` 套一层 Windows 友好的参数和流程。  
 They are Windows-friendly wrappers over `cmd/roodox_qa`.
