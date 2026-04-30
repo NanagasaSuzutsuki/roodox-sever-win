@@ -20,6 +20,8 @@ When handing Roodox to users, distinguish these two release forms first:
 
 ## Start Here / 从这里开始
 
+- [`USER_INSTALL.md`](USER_INSTALL.md): 面向普通用户的安装、配置位置和客户端交付说明  
+  End-user install guide, config locations, and client handoff basics
 - [`../README.md`](../README.md): 项目总览、快速启动、Join Bundle、TLS、GUI 入口  
   Project overview, quick start, join bundle, TLS, and GUI entrypoints
 - [`../README.md#4-release-package-usage--发布包使用方式`](../README.md#4-release-package-usage--发布包使用方式): release 包的安装、解压和交付方式  

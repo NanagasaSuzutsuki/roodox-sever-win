@@ -67,6 +67,7 @@ Current public release: `v0.1.6`
 To keep the repository root lean, supporting docs now live under `docs/`:
 
 - [`docs/README.md`](docs/README.md)
+- [`docs/USER_INSTALL.md`](docs/USER_INSTALL.md)
 - [`docs/encyclopedia/README.md`](docs/encyclopedia/README.md)
 - [`docs/OPERATIONS.md`](docs/OPERATIONS.md)
 - [`docs/QA.md`](docs/QA.md)
