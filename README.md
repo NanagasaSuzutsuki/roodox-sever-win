@@ -3,6 +3,19 @@
 Roodox 是一个以 Windows 为优先目标的 gRPC 文件服务，包含设备控制面、TLS/认证交付、远程构建编排，以及基于 Tauri 的运维工作台。  
 Roodox is a Windows-first gRPC file service with device control-plane, TLS/auth handoff, build orchestration, and a Tauri-based operator workbench.
 
+## Latest Release / 最新发布
+
+当前公开发布版本：`v0.1.6`  
+Current public release: `v0.1.6`
+
+- Release 页面 / release page: <https://github.com/NanagasaSuzutsuki/roodox-sever-win/releases/tag/v0.1.6>
+- `roodox-server-win-v0.1.6-portable.zip`
+  - 便携包，包含服务端、Workbench、客户端导入器、脚本、文档和示例配置  
+    Portable bundle with server, workbench, client importer, scripts, docs, and sample config
+- `roodox-server-win-v0.1.6-setup.exe`
+  - 一体化 Windows 安装包，适合直接交付给最终用户  
+    All-in-one Windows installer for direct end-user deployment
+
 ## Repository Contents / 仓库内容
 
 - Go 服务端，提供文件、同步、锁、版本、构建和管理接口  
@@ -105,6 +118,9 @@ At minimum, update these fields:
 - `control_plane.join_bundle.service_discovery.host`
 - `control_plane.join_bundle.service_discovery.tls_server_name`
 
+如果你是通过 `setup.exe` 安装包部署，安装器会把实际可写配置放到 `C:\ProgramData\Roodox\roodox.config.json`。这时优先修改那份安装后的配置，而不是仓库里的示例文件。  
+If you deploy through the `setup.exe` installer, the writable live config is placed at `C:\ProgramData\Roodox\roodox.config.json`. Update that installed config first instead of the in-repo sample file.
+
 ### 2. Start the Server / 启动服务
 
 最简单的本地启动方式：  
@@ -149,6 +165,25 @@ The workbench covers:
   Client access baseline, join-bundle preview, and export
 - 本地日志和配置编辑  
   Local logs and config editing
+
+### 4. Release Package Usage / 发布包使用方式
+
+如果你不从源码运行，而是直接使用公开 release：
+
+If you are using the public release instead of running from source:
+
+1. 便携包：解压 `roodox-server-win-v0.1.6-portable.zip`。  
+   Portable: extract `roodox-server-win-v0.1.6-portable.zip`.
+2. 一体化安装包：运行 `roodox-server-win-v0.1.6-setup.exe`。  
+   All-in-one installer: run `roodox-server-win-v0.1.6-setup.exe`.
+3. 安装包默认把程序文件放到 `Program Files\Roodox Server`，把可写配置和运行数据放到 `C:\ProgramData\Roodox`。  
+   The installer places app files under `Program Files\Roodox Server` and writable config/runtime data under `C:\ProgramData\Roodox`.
+4. 对客户端交付时，可直接分发这些文件：  
+   For client handoff, you can directly distribute:
+   - `roodox-client-access.json`
+   - `roodox-ca-cert.pem`
+   - `roodox-connection-code.txt`
+   - `roodox_client_import.exe`
 
 ## Join Bundle and Overlay Strategy / Join Bundle 与 Overlay 策略
 
