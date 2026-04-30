@@ -5,14 +5,14 @@ Roodox is a Windows-first gRPC file service with device control-plane, TLS/auth 
 
 ## Latest Release / 最新发布
 
-当前公开发布版本：`v0.1.6`  
-Current public release: `v0.1.6`
+当前公开发布版本：`v0.1.7`  
+Current public release: `v0.1.7`
 
-- Release 页面 / release page: <https://github.com/NanagasaSuzutsuki/roodox-sever-win/releases/tag/v0.1.6>
-- `roodox-server-win-v0.1.6-portable.zip`
+- Release 页面 / release page: <https://github.com/NanagasaSuzutsuki/roodox-sever-win/releases/tag/v0.1.7>
+- `roodox-server-win-v0.1.7-portable.zip`
   - 便携包，包含服务端、Workbench、客户端导入器、脚本、文档和示例配置  
     Portable bundle with server, workbench, client importer, scripts, docs, and sample config
-- `roodox-server-win-v0.1.6-setup.exe`
+- `roodox-server-win-v0.1.7-setup.exe`
   - 一体化 Windows 安装包，适合直接交付给最终用户  
     All-in-one Windows installer for direct end-user deployment
 
@@ -173,10 +173,10 @@ The workbench covers:
 
 If you are using the public release instead of running from source:
 
-1. 便携包：解压 `roodox-server-win-v0.1.6-portable.zip`。  
-   Portable: extract `roodox-server-win-v0.1.6-portable.zip`.
-2. 一体化安装包：运行 `roodox-server-win-v0.1.6-setup.exe`。  
-   All-in-one installer: run `roodox-server-win-v0.1.6-setup.exe`.
+1. 便携包：解压 `roodox-server-win-v0.1.7-portable.zip`。  
+   Portable: extract `roodox-server-win-v0.1.7-portable.zip`.
+2. 一体化安装包：运行 `roodox-server-win-v0.1.7-setup.exe`。  
+   All-in-one installer: run `roodox-server-win-v0.1.7-setup.exe`.
 3. 安装包默认把程序文件放到 `Program Files\Roodox Server`，把可写配置和运行数据放到 `C:\ProgramData\Roodox`。  
    The installer places app files under `Program Files\Roodox Server` and writable config/runtime data under `C:\ProgramData\Roodox`.
 4. 对客户端交付时，可直接分发这些文件：  

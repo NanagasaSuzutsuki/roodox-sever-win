@@ -5,16 +5,16 @@ This directory contains feature, operations, and integration documentation for R
 
 ## Release Entry / 发布入口
 
-当前公开发布版本：[`v0.1.6`](https://github.com/NanagasaSuzutsuki/roodox-sever-win/releases/tag/v0.1.6)
+当前公开发布版本：[`v0.1.7`](https://github.com/NanagasaSuzutsuki/roodox-sever-win/releases/tag/v0.1.7)
 
 交付给用户时，优先区分两类产物：
 
 When handing Roodox to users, distinguish these two release forms first:
 
-- `roodox-server-win-v0.1.6-portable.zip`
+- `roodox-server-win-v0.1.7-portable.zip`
   - 面向技术用户、测试和便携分发  
     For technical users, testing, and portable delivery
-- `roodox-server-win-v0.1.6-setup.exe`
+- `roodox-server-win-v0.1.7-setup.exe`
   - 面向普通 Windows 用户的一体化安装  
     For standard Windows users who want a single installer
 

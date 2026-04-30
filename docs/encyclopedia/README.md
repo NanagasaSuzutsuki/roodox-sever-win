@@ -3,13 +3,13 @@
 这套文档是给“后续维护者和你自己”看的，不是宣传页。写法会尽量偏工程手册：先讲边界，再讲接口，再讲敏感面，最后讲改法。  
 This set is written for maintainers and future self-service modification, not for marketing.
 
-当前这套百科与 `v0.1.6` 公开发布内容保持同步，默认包含这些交付前提：  
-This encyclopedia is aligned with the public `v0.1.6` release and assumes the following handoff baseline:
+当前这套百科与 `v0.1.7` 公开发布内容保持同步，默认包含这些交付前提：  
+This encyclopedia is aligned with the public `v0.1.7` release and assumes the following handoff baseline:
 
-- 存在便携包 `roodox-server-win-v0.1.6-portable.zip`  
-  The portable release `roodox-server-win-v0.1.6-portable.zip` exists
-- 存在一体化安装包 `roodox-server-win-v0.1.6-setup.exe`  
-  The all-in-one installer `roodox-server-win-v0.1.6-setup.exe` exists
+- 存在便携包 `roodox-server-win-v0.1.7-portable.zip`  
+  The portable release `roodox-server-win-v0.1.7-portable.zip` exists
+- 存在一体化安装包 `roodox-server-win-v0.1.7-setup.exe`  
+  The all-in-one installer `roodox-server-win-v0.1.7-setup.exe` exists
 - 客户端连接码导入器 `roodox_client_import.exe` 已进入正式交付物  
   `roodox_client_import.exe` is part of the shipped client handoff set
 - Workbench 首页接入流、连接码生成和安装实例配置发现逻辑是当前基线  

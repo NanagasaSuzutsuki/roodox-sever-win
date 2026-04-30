@@ -5,20 +5,20 @@ This guide is for first-time users who are not modifying source code and just wa
 
 ## 1. Download / 下载
 
-当前公开版本：`v0.1.6`
+当前公开版本：`v0.1.7`
 
 Release 页面：
 
-- <https://github.com/NanagasaSuzutsuki/roodox-sever-win/releases/tag/v0.1.6>
+- <https://github.com/NanagasaSuzutsuki/roodox-sever-win/releases/tag/v0.1.7>
 
 你会看到两个主要文件：
 
 You will see two main downloads:
 
-- `roodox-server-win-v0.1.6-setup.exe`
+- `roodox-server-win-v0.1.7-setup.exe`
   - 推荐大多数用户使用  
     Recommended for most users
-- `roodox-server-win-v0.1.6-portable.zip`
+- `roodox-server-win-v0.1.7-portable.zip`
   - 适合技术用户、测试或手动部署  
     For technical users, testing, or manual deployment
 
@@ -45,7 +45,7 @@ Use this if you want to control folder layout yourself or are only testing.
 
 ## 3. Install With `setup.exe` / 使用安装包安装
 
-1. 双击 `roodox-server-win-v0.1.6-setup.exe`
+1. 双击 `roodox-server-win-v0.1.7-setup.exe`
 2. 按向导完成安装
 3. 安装完成后，打开 `Roodox Workbench`
 
@@ -65,7 +65,7 @@ Use this if you want to control folder layout yourself or are only testing.
 
 ## 4. Use The Portable Zip / 使用便携包
 
-1. 解压 `roodox-server-win-v0.1.6-portable.zip`
+1. 解压 `roodox-server-win-v0.1.7-portable.zip`
 2. 打开解压后的目录
 3. 先看里面的 `README.md` 和 `RELEASE.txt`
 4. 修改目录里的 `roodox.config.json`
