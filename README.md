@@ -1,7 +1,7 @@
 # Roodox
 
-Roodox 是一个以 Windows 为优先目标的 gRPC 文件服务，包含设备控制面、TLS/认证交付、远程构建编排，以及基于 Tauri 的运维工作台。  
-Roodox is a Windows-first gRPC file service with device control-plane, TLS/auth handoff, build orchestration, and a Tauri-based operator workbench.
+Roodox 是一个面向 Windows 交付的本地文件服务与运维工作台组合，重点提供三件事：服务端部署、加密认证交付、客户端接入导出。  
+Roodox is a Windows-first delivery package for local file service operations, secure client handoff, and operator-managed access export.
 
 ## Latest Release / 最新发布
 
@@ -16,7 +16,82 @@ Current public release: `v0.1.7`
   - 一体化 Windows 安装包，适合直接交付给最终用户  
     All-in-one Windows installer for direct end-user deployment
 
+## Product Snapshot / 产品形态
+
+当前对外可交付形态不是“只有服务端源码”，而是完整的 Windows 交付基线：
+
+The current public baseline is not just server source code. It is a Windows delivery set that includes:
+
+- 服务端程序  
+  Server binary
+- Workbench 图形工作台  
+  Workbench GUI
+- 连接码导出  
+  Connection-code export
+- 客户端接入包导出  
+  Client access bundle export
+- 客户端导入器 `roodox_client_import.exe`  
+  Client importer `roodox_client_import.exe`
+- TLS / CA / shared-secret 交付链路  
+  TLS / CA / shared-secret handoff path
+- 升级、回滚、证书轮换与 QA 脚本  
+  Upgrade, rollback, certificate rotation, and QA scripts
+
+## Key Capabilities / 功能概览
+
+- 图形化运维入口  
+  GUI-based operator entrypoint
+- Windows 安装版与便携版交付  
+  Windows installer and portable distribution
+- 客户端连接码和接入包导出  
+  Client connection-code and access-bundle export
+- TLS 证书检查、轮换和客户端 CA 导出  
+  TLS inspection, rotation, and client CA export
+- 共享密钥认证交付  
+  Shared-secret based authentication handoff
+- 文件、目录、锁、版本、控制面和管理接口  
+  File, directory, lock, version, control-plane, and admin interfaces
+- 升级、回滚、备份和部署生命周期脚本  
+  Upgrade, rollback, backup, and deployment lifecycle scripts
+
+## Typical Use / 适用方式
+
+- 给受控 Windows 环境做本地部署  
+  Local deployment in controlled Windows environments
+- 由管理员统一发放客户端接入信息  
+  Operator-managed client handoff
+- 用 direct、Tailscale 或 EasyTier 作为连接路径  
+  Direct, Tailscale, or EasyTier based connectivity
+
+## Quick Handoff / 最短交付路径
+
+如果你的目标是“把服务端装好，然后把客户端接入方式交给别人”，最短流程是：
+
+If your goal is to install the server and hand off client access, the shortest path is:
+
+1. 安装 `roodox-server-win-v0.1.7-setup.exe`
+2. 打开 Workbench
+3. 配置客户端接入方式
+4. 生成连接码
+5. 导出客户端接入包
+6. 交付给客户端：
+   `roodox-connection-code.txt`
+   `roodox-client-access.json`
+   `roodox-ca-cert.pem`（启用 TLS 时）
+   `roodox_client_import.exe`
+
+## Docs For Users / 面向交付的文档
+
+- [`docs/USER_INSTALL.md`](docs/USER_INSTALL.md)
+- [`docs/CLIENT_INTEGRATION_REPORT.md`](docs/CLIENT_INTEGRATION_REPORT.md)
+- [`docs/OPERATIONS.md`](docs/OPERATIONS.md)
+- [`docs/QA.md`](docs/QA.md)
+
 ## Repository Contents / 仓库内容
+
+如果你是使用者，到这里之前的内容基本够了。下面开始是源码仓库结构说明。
+
+If you are an end user or operator, the sections above are usually enough. The following sections describe the repository itself.
 
 - Go 服务端，提供文件、同步、锁、版本、构建和管理接口  
   Go server with file, sync, lock, version, build, and admin APIs
@@ -28,25 +103,6 @@ Current public release: `v0.1.7`
   Tauri + React operator workbench
 - 用于客户端交付的 Join Bundle 格式  
   Join-bundle format for client-facing access handoff
-
-## Key Capabilities / 功能概览
-
-- 基于 gRPC 的文件与目录操作  
-  File and directory operations over gRPC
-- 带版本控制的整文件写、区间写和截断  
-  Version-aware whole-file writes, range writes, and truncate support
-- 设备注册、心跳、挂载/同步状态上报、诊断上传  
-  Device registration, heartbeat, mount/sync reporting, and diagnostics upload
-- 基于 SQLite 的运行态、历史、锁和观测数据  
-  SQLite-backed runtime state, history, lock, and observability data
-- TLS 证书检查、轮换、客户端 CA 导出  
-  TLS certificate inspection, rotation, and client CA export
-- Windows 进程和服务生命周期管理  
-  Windows process and service lifecycle management
-- GUI 侧运维与客户端接入包导出  
-  GUI-based operations and client access export
-- 连接码导出与客户端导入器  
-  Self-contained connection-code export and client importer
 
 ## Repository Layout / 目录结构
 
